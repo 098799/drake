@@ -1,0 +1,9 @@
+drake
+bas/
+dat/
+*.mod
+*.o
+*.f90#
+*.f90~
+intJ_*
+intK_*
