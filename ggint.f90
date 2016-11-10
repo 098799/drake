@@ -4,7 +4,7 @@ module ggint
   !    integer, parameter :: prec=16
   integer, parameter :: ggn=400,hn=200,ghn=100
   real(prec) :: ggabsciss(ggn),ggweights(ggn),hermiteh_gg(2,0:hn,ggn),hermiteh_gh(0:hn,ggn),ghabsciss(ghn),ghweights(ghn)
-  real(prec) :: dzejmu(2,-4:hn)
+  real(prec) :: dzejmu(2,-5:hn)
   real(prec) :: factorials(0:hn),binomials(0:hn,0:hn)!sqrtfactorials(0:200)
   real(prec), parameter :: sqrtpi&
        &=1.77245385090551602729816748334114518_prec
@@ -289,6 +289,27 @@ contains
     norm = 1._prec/sqrt(2._prec**m*factorials(m)*sqrtpi)
   end function norm
 
+  function abn(m,n,pm)
+    implicit none
+    integer    :: m,n,i
+    real(prec) :: abn
+    logical    :: pm
+    abn = 1._prec
+    if (n.LE.m) then
+       if (pm) then
+          do i = 1, n
+             abn = abn * real(m+i,prec)
+          end do
+          abn = sqrt(abn) * sqrt(2._prec**real(n,prec))
+       else
+          do i = 1, n
+             abn = abn / real(m-i+1,prec)
+          end do
+          abn = sqrt(abn) / sqrt(2._prec**real(n,prec))
+       end if
+    end if
+  end function abn
+
   subroutine import_factorials
     implicit none
     integer            :: i
@@ -439,7 +460,7 @@ contains
        do s = 0, m
           tempf12 = 0._prec
           do t = 0, o
-             tempf12 = tempf12 + coeff(o,r,t) * imunudf122(m+p-2*s,o+r-2*t,beta)
+             tempf12 = tempf12 + coeff(o,r,t) * imunudf122norm(m+p-2*s,o+r-2*t,beta)
           end do
           intdf122 = intdf122 + coeff(m,p,s) * tempf12
        end do
@@ -455,38 +476,100 @@ contains
     intdf122chem = intdf122(mm,pp,oo,rr,beta)
   end function intdf122chem
 
+  function oldimunudf122(m,n,beta)
+    integer    :: m,n,b
+    real(prec) :: oldimunudf122,beta
+    oldimunudf122 = 0._prec
+    if (mod(m+n,2).NE.1) then
+       b = bet(beta)
+       oldimunudf122 = 2._prec*sqrtpi*(-1._prec)**n*2._prec**(-(m+n)/2._prec)*(&
+            &dzejmu(b,m+n)&
+            &-(real(b,prec)-1._prec)/2._prec*( dzejmu(b,m+n+2)+&
+            &real(4._prec*(m+n)+2,prec)*dzejmu(b,m+n)+&
+            &real(4._prec*(m+n)*(m+n-1),prec)*dzejmu(b,m+n-2) )&
+            &+((real(b,prec)-1._prec)/4._prec)**2*&
+            &( dzejmu(b,m+n+4)+&
+            & real(8._prec*(m+n)+12._prec,prec)*dzejmu(b,m+n+2)+&
+            & real(24._prec*(m+n)**2+24._prec*(m+n)+12._prec,prec)*dzejmu(b,m+n)+&
+            & real(32._prec*(m+n)**3-48._prec*(m+n)**2+16._prec*(m+n),prec)*dzejmu(b,m+n-2)+&
+            & real(16._prec*(m+n)*(m+n-1)*(m+n-2)*(m+n-3),prec)*dzejmu(b,m+n-4)&
+            &))
+    end if
+  end function oldimunudf122
+
   function imunudf122(m,n,beta)
     integer    :: m,n,b
     real(prec) :: imunudf122,beta
-    b = bet(beta)
-    imunudf122 = 2._prec*sqrtpi*(-1._prec)**n*2._prec**(-(m+n)/2._prec)*(&
-         &dzejmu(b,m+n)&
-         &-(real(b,prec)-1._prec)/2._prec*&
-         &( dzejmu(b,m+n+2)+real(4*(m+n)+2,prec)*dzejmu(b,m+n)+real(4*(m+n)*(m+n-1),prec)*dzejmu(b,m+n-2) )&
-         &+((real(b,prec)-1._prec)/4._prec)**2*&
-         &( dzejmu(b,m+n+4)+real(8*(m+n)+12,prec)*dzejmu(b,m+n+2)+real(24*(m+n)**2+24*(m+n)+12,prec)*dzejmu(b,m+n)+&
-         &real(32*(m+n)**3-48*(m+n)**2+16*(m+n),prec)*dzejmu(b,m+n-2)+real(16*(m+n)*(m+n-1)*(m+n-2)*(m+n-3),prec)*&
-         &dzejmu(b,m+n-4) )  )
+    imunudf122 = 0._prec
+    if (mod(m+n,2).NE.1) then
+       b = bet(beta)
+       imunudf122 = 2._prec*sqrtpi*(-1._prec)**n*2._prec**(-(m+n)/2._prec)*(dzejmu(b,m+n)-&
+            & 2._prec*(beta-1._prec)/4._prec*(dzejmu(b,m+n+2)+&
+            & real(4._prec*(m+n)+2,prec)*dzejmu(b,m+n)+&
+            & real(4._prec*(m+n)**2-4._prec*(m+n),prec)*dzejmu(b,m+n-2))+&
+            & ((beta-1._prec)/4._prec)**2*(dzejmu(b,m+n+4)+&
+            & real(8._prec*(m+n)+12._prec,prec)*dzejmu(b,m+n+2)+&
+            & real(24._prec*(m+n)**2+24._prec*(m+n)+12._prec,prec)*dzejmu(b,m+n)+&
+            & real(32._prec*(m+n)**3-48._prec*(m+n)**2+16._prec*(m+n),prec)*dzejmu(b,m+n-2)+&
+            & real(16._prec*(m+n)*(m+n-1)*(m+n-2)*(m+n-3),prec)*dzejmu(b,m+n-4)))
+    end if
   end function imunudf122
+
+  function imunudf122norm(m,n,beta)
+    integer    :: m,n,b
+    real(prec) :: imunudf122norm,beta,mn
+    !some super bogus code...
+    if (m.EQ.0.and.n.eq.0) then
+       imunudf122norm = 0.5390125124744174978149239120563448922870409268698824918081870965
+    else if (m.EQ.2.and.n.eq.0.or.m.EQ.0.and.n.eq.2) then
+       imunudf122norm = -0.1345197891935502887834707784128512214525037706050587983590004814
+    else if (m.EQ.1.and.n.eq.1) then
+       imunudf122norm = 0.1902397102850885286405613807257687855130732683070173500499483870
+    else
+       !/bogus
+       mn = real(m+n,prec)
+       imunudf122norm = 0._prec
+       if (mod(m+n,2).NE.1) then
+          b = bet(beta)
+          imunudf122norm = norm(n)*norm(m)/norm(m+n)*&
+               & 2._prec*sqrtpi*(-1._prec)**n*2._prec**(-(m+n)/2._prec)*&
+               &(dzejmu(b,m+n)-&
+               & 2._prec*(beta-1._prec)/4._prec*(dzejmu(b,m+n+2)*abn(m+n,2,.TRUE.)+&
+               & (4._prec*(m+n)+2._prec)*dzejmu(b,m+n)+&
+               & (4._prec*mn**2-4._prec*mn)*dzejmu(b,m+n-2)*abn(m+n,2,.FALSE.))+&
+               & ((beta-1._prec)/4._prec)**2*(dzejmu(b,m+n+4)*abn(m+n,4,.TRUE.)+&
+               & (8._prec*mn+12._prec)*dzejmu(b,m+n+2)*abn(m+n,2,.TRUE.)+&
+               & (24._prec*mn**2+24._prec*mn+12._prec)*dzejmu(b,m+n)+&
+               & (32._prec*mn**3-48._prec*mn**2+16._prec*mn)*dzejmu(b,m+n-2)*abn(m+n,2,.FALSE.)+&
+               & (16._prec*mn*(mn-1._prec)*(mn-2._prec)*(mn-3._prec))*dzejmu(b,m+n-4)*abn(m+n,4,.FALSE.)))
+       end if
+    end if
+  end function imunudf122norm
 
   function imunuf122norm(mu,nu,beta)
     implicit none
     integer    :: mu,nu,b
     real(prec) :: imunuf122norm,beta
-    b = bet(beta)
-    imunuf122norm = norm(nu)*norm(mu)/norm(mu+nu)*4._prec*sqrtpi*(-1._prec)**nu*2._prec**(-(mu+nu)/2._prec)&
-         &*(0.25_prec*dzejmu(b,mu+nu+2)*sqrt(4._prec*real(mu+nu+2)*real(mu+nu+1))&
-         &+(real(mu+nu,prec)+0.5_prec)*dzejmu(b,mu+nu)&
-         &+sqrt(real(mu+nu,prec)*real(mu+nu-1,prec))*dzejmu(b,mu+nu-2)/2._prec)
+    imunuf122norm = 0._prec
+    if (mod(mu+nu,2).NE.1) then
+       b = bet(beta)
+       imunuf122norm = norm(nu)*norm(mu)/norm(mu+nu)*4._prec*sqrtpi*(-1._prec)**nu*2._prec**(-(mu+nu)/2._prec)&
+            &*(0.25_prec*dzejmu(b,mu+nu+2)*sqrt(4._prec*real(mu+nu+2)*real(mu+nu+1))&
+            &+(real(mu+nu,prec)+0.5_prec)*dzejmu(b,mu+nu)&
+            &+sqrt(real(mu+nu,prec)*real(mu+nu-1,prec))*dzejmu(b,mu+nu-2)/2._prec)
+    end if
   end function imunuf122norm
 
   function imunuf12norm(mu,nu,beta)
     implicit none
     integer    :: mu,nu,b
     real(prec) :: imunuf12norm,beta
-    b = bet(beta)
-    imunuf12norm = norm(nu)*norm(mu)/norm(mu+nu)*sqrttwo*sqrtpi*(-1._prec)**nu*2._prec**(-real(mu+nu,prec)/2._prec)&
-         &*(sqrt(2._prec*real(mu+nu+1,prec))*dzejmu(b,mu+nu+1)+sqrt(2._prec*(real(mu+nu,prec)))*dzejmu(b,mu+nu-1))
+    imunuf12norm = 0._prec
+    if (mod(mu+nu,2).NE.1) then
+       b = bet(beta)
+       imunuf12norm = norm(nu)*norm(mu)/norm(mu+nu)*sqrttwo*sqrtpi*(-1._prec)**nu*2._prec**(-real(mu+nu,prec)/2._prec)&
+            &*(sqrt(2._prec*real(mu+nu+1,prec))*dzejmu(b,mu+nu+1)+sqrt(2._prec*(real(mu+nu,prec)))*dzejmu(b,mu+nu-1))
+    end if
   end function imunuf12norm
 
   subroutine make_dzejmu(beta)
@@ -500,7 +583,7 @@ contains
        do i = 1, ggn
           dzejmu(b,mu) = dzejmu(b,mu) + hermiteh_gg(b,mu,i) * ggweights(i)
        end do
-       dzejmu(b,mu) = 1._prec/sqrt(beta) * dzejmu(b,mu)! * norm(mu)
+       dzejmu(b,mu) = 1._prec/sqrt(beta) * dzejmu(b,mu) * norm(mu)
     end do
   end subroutine make_dzejmu
 
@@ -515,6 +598,37 @@ contains
        call kurwout
     end if
   end function bet
+
+  subroutine check(what)
+    implicit none
+    character(len=*), intent(in) :: what
+    real(prec), parameter :: thr = 1.e-5
+    select case (what)
+    case ('dzejmu')
+       if (abs(dzejmu(1,1)-0.333333).LT.thr) then
+          print*, "dzejmu is probably not normalized, issues??"
+       else if (abs(dzejmu(1,1)-0.177042).GT.thr.or.abs(dzejmu(2,1)-0.106225).GT.thr) then
+          print*, abs(dzejmu(1,1)-0.177042),abs(dzejmu(2,1)-0.106225)
+          print*, "normalized dzejmu is wrong"
+          call kurwout()
+       end if
+    case ('intf12')
+       if (abs(intf12(3,3,3,3,3._prec)-0.126686006).GT.thr.or.abs(intf12(1,2,3,4,3._prec)-0.0280728333).GT.thr) then
+          print*, "intf12 doesn't work"
+          call kurwout()
+       end if
+    case ('intf122')
+       if (abs(intf122(3,3,3,3,5._prec)-0.03901133673).GT.thr.or.abs(intf122(1,2,3,4,5._prec)-0.011738373).GT.thr) then
+          print*, "intf122 doesn't work"
+          call kurwout()
+       end if
+    case ('imunudf122norm')
+       if (abs(imunudf122norm(3,3,5._prec)-0.086242001).GT.thr) then
+          print*, "imunudf122norm doesn't work"
+          call kurwout()
+       end if
+    end select
+  end subroutine check
 
   ! function dzejmu(mu,beta)
   !   implicit none
@@ -532,15 +646,15 @@ contains
   ! end function dzejmu
 
   subroutine kurwout
-    print*, "__/\\\________/\\\__/\\\________/\\\____/\\\\\\\\\______/\\\______________/\\\_____/\\\\\\\\\____        "
-    print*, " _\/\\\_____/\\\//__\/\\\_______\/\\\__/\\\///////\\\___\/\\\_____________\/\\\___/\\\\\\\\\\\\\__       "
-    print*, "  _\/\\\__/\\\//_____\/\\\_______\/\\\_\/\\\_____\/\\\___\/\\\_____________\/\\\__/\\\/////////\\\_      "
-    print*, "   _\/\\\\\\//\\\_____\/\\\_______\/\\\_\/\\\\\\\\\\\/____\//\\\____/\\\____/\\\__\/\\\_______\/\\\_     "
-    print*, "    _\/\\\//_\//\\\____\/\\\_______\/\\\_\/\\\//////\\\_____\//\\\__/\\\\\__/\\\___\/\\\\\\\\\\\\\\\_    "
-    print*, "     _\/\\\____\//\\\___\/\\\_______\/\\\_\/\\\____\//\\\_____\//\\\/\\\/\\\/\\\____\/\\\/////////\\\_   "
-    print*, "      _\/\\\_____\//\\\__\//\\\______/\\\__\/\\\_____\//\\\_____\//\\\\\\//\\\\\_____\/\\\_______\/\\\_  "
-    print*, "       _\/\\\______\//\\\__\///\\\\\\\\\/___\/\\\______\//\\\_____\//\\\__\//\\\______\/\\\_______\/\\\_ "
-    print*, "        _\///________\///_____\/////////_____\///________\///_______\///____\///_______\///________\///__"
+    print*, "__/\\\________/\\\__/\\\________/\\\____/\\\\\\\\\______/\\\______________/\\\_____/\\\\\\\\\____       "
+    print*, " _\/\\\_____/\\\//__\/\\\_______\/\\\__/\\\///////\\\___\/\\\_____________\/\\\___/\\\\\\\\\\\\\__      "
+    print*, "  _\/\\\__/\\\//_____\/\\\_______\/\\\_\/\\\_____\/\\\___\/\\\_____________\/\\\__/\\\/////////\\\_     "
+    print*, "   _\/\\\\\\//\\\_____\/\\\_______\/\\\_\/\\\\\\\\\\\/____\//\\\____/\\\____/\\\__\/\\\_______\/\\\_    "
+    print*, "    _\/\\\//_\//\\\____\/\\\_______\/\\\_\/\\\//////\\\_____\//\\\__/\\\\\__/\\\___\/\\\\\\\\\\\\\\\_   "
+    print*, "     _\/\\\____\//\\\___\/\\\_______\/\\\_\/\\\____\//\\\_____\//\\\/\\\/\\\/\\\____\/\\\/////////\\\_  "
+    print*, "      _\/\\\_____\//\\\__\//\\\______/\\\__\/\\\_____\//\\\_____\//\\\\\\//\\\\\_____\/\\\_______\/\\\_ "
+    print*, "       _\/\\\______\//\\\__\///\\\\\\\\\/___\/\\\______\//\\\_____\//\\\__\//\\\______\/\\\_______\/\\\_"
+    print*, "        _\///________\///_____\/////////_____\///________\///_______\///____\///_______\///________\///_"
     stop
   end subroutine kurwout
 

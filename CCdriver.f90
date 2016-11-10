@@ -187,7 +187,7 @@ integer :: DIIS_start,DIIS_size
 logical :: DIIS
 integer :: DIIS_off,DIIS_n
 real(dble) :: Tcpu,Twall
-integer :: i
+integer :: i,j
 
 LPRINT = merge(Control%LPRINT,0,fullPRINT)
 
@@ -264,6 +264,30 @@ associate(PairSystem => System%PairSystem(1,1))
   call make_dzejmu(3._prec)
   call gener_hermiteh_gg(5._prec)
   call make_dzejmu(5._prec)
+  call check('dzejmu')
+  call check('intf12')
+  call check('intf122')
+  call check('imunudf122norm')
+  print*, "---"
+  print*, intdf122(0,0,0,0,5._prec)
+  print*, intdf122(1,2,3,4,5._prec)
+  print*, intdf122(3,3,3,3,5._prec)
+  print*, "---"
+  print*, "imunuf12norm"
+  do i = 0, 5
+     print*, imunuf12norm(i,0,3._prec),imunuf12norm(i,1,3._prec),imunuf12norm(i,2,3._prec),imunuf12norm(i,3,3._prec)
+  end do
+  print*, "imunuf122norm"
+  do i = 0, 5
+     print*, imunuf122norm(i,0,5._prec),imunuf122norm(i,1,5._prec),imunuf122norm(i,2,5._prec),imunuf122norm(i,3,5._prec)
+  end do
+  print*, "imunudf122norm"
+  do i = 0, 5
+     print*, imunudf122norm(i,0,5._prec),imunudf122norm(i,1,5._prec),imunudf122norm(i,2,5._prec),imunudf122norm(i,3,5._prec)
+  end do
+
+
+  stop
 
   call create_matS_file(System%OrbSystem(1)%nbas)
 
@@ -285,19 +309,15 @@ associate(PairSystem => System%PairSystem(1,1))
 
   print*, "UWAGA wszystko jest ZŁE bo sprawdzamy intdf122"
 
-  do i = -2, 10
+  do i = -4, 10
      print*, i, dzejmu(1,i),dzejmu(2,i)
   end do
 
   print*, "---"
 
-  print*, imunuf12norm(3,3,3._prec)
-  print*, imunuf122norm(3,3,5._prec)
-  print*, "z",imunudf122(3,3,5._prec)
-  
-  print*, intf12(3,3,3,3,3._prec)
-  print*, intf122(3,3,3,3,5._prec)
-  print*, intdf122(3,3,3,3,5._prec)
+  print*, "imunuf12norm,3,3,3._prec",imunuf12norm(3,3,3._prec)
+  print*, "imunuf12norm,3,3,5._prec",imunuf122norm(3,3,5._prec)
+  print*, "imunudf122,3,3,5",imunudf122(3,3,5._prec)
 
   stop
   !modtg
