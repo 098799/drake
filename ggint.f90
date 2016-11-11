@@ -1,5 +1,6 @@
 module ggint
   use precision, only : prec
+  use file_OUT, only : LOUT
   implicit none
   !    integer, parameter :: prec=16
   integer, parameter :: ggn=400,hn=200,ghn=100
@@ -425,8 +426,6 @@ contains
           intf122 = intf122 + coeff(m,p,s) * tempf12/norm(m+p-2*s)
        end do
        intf122 = norm(mm)*norm(oo)*norm(pp)*norm(rr)*intf122
-       ! else
-       !    intf122 = 14.33_prec
     end if
   end function intf122
 
@@ -438,6 +437,7 @@ contains
   end function intf122chem
 
   function intdf122(mm,oo,pp,rr,beta)
+    implicit none
     integer    :: m,o,p,r,s,t
     integer    :: mm,oo,pp,rr
     real(prec) :: intdf122,tempf12,beta
@@ -460,9 +460,9 @@ contains
        do s = 0, m
           tempf12 = 0._prec
           do t = 0, o
-             tempf12 = tempf12 + coeff(o,r,t) * imunudf122norm(m+p-2*s,o+r-2*t,beta)
+             tempf12 = tempf12 + coeff(o,r,t) * imunudf122norm(m+p-2*s,o+r-2*t,beta)/norm(o+r-2*t)
           end do
-          intdf122 = intdf122 + coeff(m,p,s) * tempf12
+          intdf122 = intdf122 + coeff(m,p,s) * tempf12/norm(m+p-2*s)
        end do
        intdf122 = norm(mm)*norm(oo)*norm(pp)*norm(rr)*intdf122
     end if
@@ -578,7 +578,6 @@ contains
     integer    :: i,mu,b
     b = bet(beta)
     dzejmu(b,:)=0._prec
-    print*, "making dzejmu of b=",b
     do mu = 0, hn
        do i = 1, ggn
           dzejmu(b,mu) = dzejmu(b,mu) + hermiteh_gg(b,mu,i) * ggweights(i)
@@ -611,21 +610,37 @@ contains
           print*, abs(dzejmu(1,1)-0.177042),abs(dzejmu(2,1)-0.106225)
           print*, "normalized dzejmu is wrong"
           call kurwout()
+       else
+          write(LOUT,'(a)') "    Dzejmu is correct"
        end if
     case ('intf12')
        if (abs(intf12(3,3,3,3,3._prec)-0.126686006).GT.thr.or.abs(intf12(1,2,3,4,3._prec)-0.0280728333).GT.thr) then
           print*, "intf12 doesn't work"
           call kurwout()
+       else
+          write(LOUT,'(a)') "    Intf12 is correct"
        end if
     case ('intf122')
        if (abs(intf122(3,3,3,3,5._prec)-0.03901133673).GT.thr.or.abs(intf122(1,2,3,4,5._prec)-0.011738373).GT.thr) then
           print*, "intf122 doesn't work"
           call kurwout()
+       else
+          write(LOUT,'(a)') "    Intf122 is correct"
        end if
     case ('imunudf122norm')
        if (abs(imunudf122norm(3,3,5._prec)-0.086242001).GT.thr) then
           print*, "imunudf122norm doesn't work"
           call kurwout()
+       else
+          write(LOUT,'(a)') "    Imunudf122norm is correct"
+       end if
+    case ('intdf122')
+       if (abs(intdf122(3,3,3,3,5._prec)-0.1662632851030596).GT.thr.or.&
+            &abs(intdf122(1,2,3,4,5._prec)-0.03302934860107639).GT.thr) then
+          print*, "intf122 doesn't work"
+          call kurwout()
+       else
+          write(LOUT,'(a)') "    Intdf122 is correct"
        end if
     end select
   end subroutine check

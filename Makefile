@@ -23,7 +23,7 @@ $(NAME) : $(OBJ)
 %.o : %.f90
 	$(F90) -c $(OPTIONS) $(FFLAG) $<
 
-ggint.o          : precision.o
+ggint.o          : file_INOUT.o precision.o
 precision_qd.o   : precision.o
 memory.o         : file_INOUT.o precision.o
 time.o           : file_INOUT.o precision.o
