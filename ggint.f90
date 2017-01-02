@@ -429,6 +429,38 @@ contains
     end if
   end function intf122
 
+  ! function intf1226(ii,jj,kk,ll,iip,jjp,beta)
+  !   implicit none
+  !   integer    :: i,j,k,l,ip,jp,
+  !   integer    :: ii,jj,kk,ll,iip,jjp
+  !   real(prec) :: intf122,tempf12,beta
+  !   intf122 = 0._prec
+  !   if (modulo(modulo(mm,2)+modulo(oo,2)+modulo(pp,2)+modulo(rr,2),2).EQ.0) then
+  !      if (pp.lt.mm) then
+  !         m=pp
+  !         p=mm
+  !      else
+  !         m=mm
+  !         p=pp
+  !      end if
+  !      if (rr.lt.oo) then
+  !         r=oo
+  !         o=rr
+  !      else
+  !         r=rr
+  !         o=oo
+  !      end if
+  !      do s = 0, m
+  !         tempf12 = 0._prec
+  !         do t = 0, o
+  !            tempf12 = tempf12 + coeff(o,r,t) * imunuf122norm(m+p-2*s,o+r-2*t,beta)/norm(o+r-2*t)
+  !         end do
+  !         intf122 = intf122 + coeff(m,p,s) * tempf12/norm(m+p-2*s)
+  !      end do
+  !      intf122 = norm(mm)*norm(oo)*norm(pp)*norm(rr)*intf122
+  !   end if
+  ! end function intf122
+
   function intf122chem(mm,oo,pp,rr,beta)
     implicit none
     integer, intent(in)    :: mm,oo,pp,rr

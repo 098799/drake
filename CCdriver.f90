@@ -187,8 +187,7 @@ integer :: DIIS_start,DIIS_size
 logical :: DIIS
 integer :: DIIS_off,DIIS_n
 real(dble) :: Tcpu,Twall
-integer :: i,j
-real(prec) :: final
+integer :: i
 
 LPRINT = merge(Control%LPRINT,0,fullPRINT)
 
@@ -269,7 +268,7 @@ associate(PairSystem => System%PairSystem(1,1))
   call make_dzejmu(3._prec)
   call gener_hermiteh_gg(5._prec)
   call make_dzejmu(5._prec)
-  
+
   write(LOUT,'(a)') "**  Checking                                  **"
   call check('dzejmu')
   call check('intf12')
@@ -278,7 +277,6 @@ associate(PairSystem => System%PairSystem(1,1))
   call check('intdf122')
 
   write(LOUT,'(a)') "--------------------------------------------------------------------------------"
-  stop
 
   call create_matS_file(System%OrbSystem(1)%nbas)
 
@@ -292,23 +290,6 @@ associate(PairSystem => System%PairSystem(1,1))
      matL1_S(:,:) = 0._prec
      matL1_T(:,:) = 0._prec
   endif
-
-  print*, "nbas",System%OrbSystem(1)%nbas,"norb",norb
-  print*, "sprawdzamy mat_s"
-  print*, "integral of 0,0,(should be 2*0.19245something)",matS_S(1,1)
-  print*, "integral of 29,23,(should be -0.0001765something)",matS_S(29,23)
-
-  print*, "UWAGA wszystko jest ZŁE bo sprawdzamy intdf122"
-
-  do i = -4, 10
-     print*, i, dzejmu(1,i),dzejmu(2,i)
-  end do
-
-  print*, "---"
-
-  print*, "imunuf12norm,3,3,3._prec",imunuf12norm(3,3,3._prec)
-  print*, "imunuf12norm,3,3,5._prec",imunuf122norm(3,3,5._prec)
-  print*, "imunudf122,3,3,5",imunudf122(3,3,5._prec)
 
   stop
   !modtg
