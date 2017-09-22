@@ -17,16 +17,16 @@ primitives=1
 1,1 | 1 : 3
 end
 
-tgnbas = 16 !liczba funkcji bazy do ggint
+tgnbas = 12 !liczba funkcji bazy do ggint
 tgg    = 2.e0
 int3 = Q
-print = 5
+print = 0
 !simthr = 1e-4
 !redthr = 1e-4
-scfthr = 1.e-18
+scfthr = 1.e-8 !18
 scfcnt = 32
 scfmaxit = 250
-energthr = 1.e-13
+energthr = 1.e-6 !13
 energmaxit = 100
 diverthr = 5
 !optthrmlt = 1.e-1

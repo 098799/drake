@@ -1839,6 +1839,8 @@ if(Triplet%restrict) then
 
       end associate
    enddo
+   print*, ibas, ibas_orig, PairSystem%nbas
+   stop
    if(ibas_orig/=PairSystem%nbas) then
       write(LOUT,'(a)') 'ERROR!!! &
            &Incorrect original number of basis functions in init_Triplet!'

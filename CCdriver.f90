@@ -167,7 +167,7 @@ real(prec),allocatable :: matP1_S(:,:),matP1_T(:,:)
 real(prec),allocatable :: matPe_S(:,:),matPe_T(:,:)
 real(prec),allocatable :: matP2_S(:,:),matP2_T(:,:)
 real(prec),allocatable :: matL1_S(:,:),matL1_T(:,:)
-real(prec),allocatable :: matJ_S(:,:,:,:),matJ_T(:,:,:,:)
+real(prec),allocatable :: matJ_S(:,:,:,:),matJ_T(:,:,:,:),int6f122(:,:,:,:,:,:)
 real(prec),allocatable :: matK_S(:,:,:,:),matK_T(:,:,:,:)
 real(prec),allocatable :: matM_S(:,:,:,:),matM_T(:,:,:,:)
 real(prec),allocatable :: vec0(:,:,:),vec1(:,:,:),vecP(:,:,:)
@@ -187,7 +187,15 @@ integer :: DIIS_start,DIIS_size
 logical :: DIIS
 integer :: DIIS_off,DIIS_n
 real(dble) :: Tcpu,Twall
-integer :: i
+integer :: i,j,k,l,m,n,caunta
+real(prec) :: val1,val2,val3,val4
+!!! some of my shit
+real(prec), allocatable :: intildef12(:,:),intildef122(:,:),intinterm1(:,:,:)
+real(prec), allocatable :: intinterm2(:,:,:),intinterm12(:,:,:,:),intinterm22(:,:,:,:)
+allocate(intildef12(0:newhn,0:newhn),intildef122(0:newhn,0:newhn))
+allocate(intinterm1(0:newhn,0:newhn,0:newhn),intinterm2(0:newhn,0:newhn,0:newhn))
+allocate(intinterm12(0:newhn,0:newhn,0:newhn,0:newhn),intinterm22(0:newhn,0:newhn,0:newhn,0:newhn))
+!!! some of my shit
 
 LPRINT = merge(Control%LPRINT,0,fullPRINT)
 
@@ -229,6 +237,8 @@ associate(PairSystem => System%PairSystem(1,1))
   call mem_alloc(matP2_S,nbas,nbas); call mem_alloc(matP2_T,nbas,nbas)
   if(stage>0) then
      call mem_alloc(matL1_S,nbas,nbas); call mem_alloc(matL1_T,nbas,nbas)
+     allocate(int6f122(0:System%OrbSystem(1)%nbas-1,0:System%OrbSystem(1)%nbas-1,&
+          &0:norb-1,0:norb-1,0:System%OrbSystem(1)%nbas-1,0:System%OrbSystem(1)%nbas-1))
      call mem_alloc(matJ_S,nbas,nbas,norb,norb)
      call mem_alloc(matJ_T,nbas,nbas,norb,norb)
      call mem_alloc(matK_S,nbas,nbas,norb,norb)
@@ -250,7 +260,7 @@ associate(PairSystem => System%PairSystem(1,1))
      call timer('START',Tcpu,Twall)
   endif
 
-  call create_CCint2(Nexp,exponents,System%OrbPairReduced,LPRINT)
+  ! call create_CCint2(Nexp,exponents,System%OrbPairReduced,LPRINT)
   if(fullPRINT) then
      call timer('2-el integrals init',Tcpu,Twall)
      flush(LOUT)
@@ -262,12 +272,55 @@ associate(PairSystem => System%PairSystem(1,1))
   write(LOUT,'(a)') "*** Gauss-Grining module initializing        ***"
 
   write(LOUT,'(a)') "**  Importing weights and generating hermites **"
-  call import_gg
+  call import_coo
   call import_binomials
-  call gener_hermiteh_gg(3._prec)
-  call make_dzejmu(3._prec)
-  call gener_hermiteh_gg(5._prec)
-  call make_dzejmu(5._prec)
+  call import_factorials
+  call make_norm
+  ! call import_gg
+  ! call gener_hermiteh_gg(3._prec)
+  ! call make_dzejmu(3._prec)
+  ! call gener_hermiteh_gg(5._prec)
+  ! call make_dzejmu(5._prec)
+  ! call gener_hermiteh_gg(2.5_prec)
+  ! call make_dzejmu(2.5_prec)
+  ! call gener_hermiteh_gg(4._prec)
+  ! call make_dzejmu(4._prec)
+  call import_dzejmu()
+  ! print*, intf12(1,2,3,4,3._prec)
+  ! print*, intf12(3,4,2,1,3._prec)
+  ! print*, intf12(4,3,2,1,3._prec)
+  ! print*, intf12(2,2,2,2,3._prec)
+  ! print*, intf12(20,20,20,20,3._prec)
+  ! stop
+
+  ! ! CREATEMODE
+  ! call create_intildef12_file()
+  ! call read_intildef12_file(intildef12)
+  ! call create_interm1_file(intildef12)
+  ! call read_interm1_file(intinterm1)
+  ! call create_interm12_file(intinterm1)
+  ! call read_interm12_file(intinterm12)
+  ! call create_intildef122_file()
+  ! call read_intildef122_file(intildef122)
+  ! call create_interm2_file(intildef122)
+  ! call read_interm2_file(intinterm2)
+  ! call create_interm22_file(intinterm2)
+  ! call read_interm22_file(intinterm22)
+  ! call create_matS_file(System%OrbSystem(1)%nbas)
+  ! call create_matH_file(System%OrbSystem(1)%nbas)
+  ! call create_int2_vec_file(System%OrbSystem(1)%nbas,norb)
+  ! call create_int6f122_file(System%OrbSystem(1)%nbas,norb,intinterm22,caunta)
+  ! call read_int6f122_file(System%OrbSystem(1)%nbas,norb,System%OrbSystem(1)%tgg,int6f122,caunta)
+
+  ! READMODE
+  call read_intildef12_file(intildef12)
+  call read_interm1_file(intinterm1)
+  call read_interm12_file(intinterm12)
+  call read_intildef122_file(intildef122)
+  call read_interm2_file(intinterm2)
+  call read_interm22_file(intinterm22)
+  call create_int6f122_file(System%OrbSystem(1)%nbas,norb,intinterm22,caunta)
+  call read_int6f122_file(System%OrbSystem(1)%nbas,norb,System%OrbSystem(1)%tgg,int6f122,caunta)
 
   write(LOUT,'(a)') "**  Checking                                  **"
   call check('dzejmu')
@@ -275,10 +328,19 @@ associate(PairSystem => System%PairSystem(1,1))
   call check('intf122')
   call check('imunudf122norm')
   call check('intdf122')
+  call check('imunutildef12norm')
+  call check('imunutildef122norm')
+  call check('intildef12')
+  call check('inttildef12')
+  call check('intildef122')
+  call check('inttildef122')
+
+  if(fullPRINT) then
+     call timer('import + checks use',Tcpu,Twall)
+     flush(LOUT)
+  endif
 
   write(LOUT,'(a)') "--------------------------------------------------------------------------------"
-
-  call create_matS_file(System%OrbSystem(1)%nbas)
 
   call read_matS_file('A',System%OrbSystem(1)%nbas,TMP)
   matS_S(:,:) = TMP
@@ -290,9 +352,6 @@ associate(PairSystem => System%PairSystem(1,1))
      matL1_S(:,:) = 0._prec
      matL1_T(:,:) = 0._prec
   endif
-
-  stop
-  !modtg
 
   ! call CCint2_matS('A',0,TMP,PairSystem,PairSystem)
   ! matS_S(:,:) = TMP
@@ -310,191 +369,211 @@ associate(PairSystem => System%PairSystem(1,1))
   !    matL1_T(:,:) = matL1_T - TMP
   ! endif
 
-  call CCint2_matH('A',TMP,PairSystem,PairSystem,System%nucZ)
+  call read_matH_file('A',System%OrbSystem(1)%nbas,TMP)
   matF_S(:,:) = TMP
   matF_T(:,:) = TMP
-  call CCint2_matH('B',TMP,PairSystem,PairSystem,System%nucZ)
+  call read_matH_file('B',System%OrbSystem(1)%nbas,TMP)
   matF_S(:,:) = matF_S + TMP
   matF_T(:,:) = matF_T - TMP
 
-  stop
+  ! call CCint2_matH('A',TMP,PairSystem,PairSystem,System%nucZ)
+  ! matF_S(:,:) = TMP
+  ! matF_T(:,:) = TMP
+  ! call CCint2_matH('B',TMP,PairSystem,PairSystem,System%nucZ)
+  ! matF_S(:,:) = matF_S + TMP
+  ! matF_T(:,:) = matF_T - TMP
 
-  do jorb=1,norb
-     do iorb=1,norb
-        associate(&
-             i_vect => SCF%orb_vector(:,iorb),&
-             j_vect => SCF%orb_vector(:,jorb),&
-             i_OrbSystem => System%OrbSystem(min(iorb,System%n_orbs)),&
-             j_OrbSystem => System%OrbSystem(min(jorb,System%n_orbs)))
+  call read_int2_vec_file(vec0,System%OrbSystem(1)%nbas,norb)
+  vec1(:,:,:) = 0._prec
 
-          call CCint2_vec(0,vec0(:,iorb,jorb),PairSystem,&
-               i_vect,i_OrbSystem,j_vect,j_OrbSystem)
+  ! do jorb=1,norb
+  !    do iorb=1,norb
+  !       associate(&
+  !            i_vect => SCF%orb_vector(:,iorb),&
+  !            j_vect => SCF%orb_vector(:,jorb),&
+  !            i_OrbSystem => System%OrbSystem(min(iorb,System%n_orbs)),&
+  !            j_OrbSystem => System%OrbSystem(min(jorb,System%n_orbs)))
+  !         call CCint2_vec(0,vec0(:,iorb,jorb),PairSystem,&
+  !              i_vect,i_OrbSystem,j_vect,j_OrbSystem)
+  !         call CCint2_vec(-1,vec1(:,iorb,jorb),PairSystem,&
+  !              i_vect,i_OrbSystem,j_vect,j_OrbSystem)
+  !       end associate
+  !    enddo
+  ! enddo
 
-          call CCint2_vec(-1,vec1(:,iorb,jorb),PairSystem,&
-               i_vect,i_OrbSystem,j_vect,j_OrbSystem)
-
-        end associate
-     enddo
-  enddo
-
-  call free_CCint2
+  ! call free_CCint2
   if(fullPRINT) then
      call timer('2-el integrals use',Tcpu,Twall)
      flush(LOUT)
   endif
 
-  call create_CCint3(Nexp,exponents,System%OrbReduced,System%PairReduced,&
-       Control%INT3,LPRINT)
-  if(fullPRINT) then
-     call timer('3-el integrals init',Tcpu,Twall)
-     flush(LOUT)
-  endif
+  ! call create_CCint3(Nexp,exponents,System%OrbReduced,System%PairReduced,&
+  !      Control%INT3,LPRINT)
+  ! if(fullPRINT) then
+  !    call timer('3-el integrals init',Tcpu,Twall)
+  !    flush(LOUT)
+  ! endif
+  call make_mats(System%OrbSystem(1)%nbas,norb,int6f122,matJ_S,matJ_T,matK_S,matK_T,matM_S,matM_T)
+  write(LOUT,'(a)') "**  Checking                                  **"
+  print*, "val=",matJ_S(1*System%OrbSystem(1)%nbas+3+1,2*System%OrbSystem(1)%nbas+4+1,1,1)&
+       &,"diff=",matJ_S(1*System%OrbSystem(1)%nbas+3+1,2*System%OrbSystem(1)%nbas+4+1,1,1)-(&
+       &int6f122(1,3,0,0,2,4)+int6f122(2,4,0,0,1,3)+int6f122(1,4,0,0,2,3)+int6f122(2,3,0,0,1,4))
+  print*, "val=",matJ_T(1*System%OrbSystem(1)%nbas+3+1,2*System%OrbSystem(1)%nbas+4+1,1,1)&
+       &,"diff=",matJ_T(1*System%OrbSystem(1)%nbas+3+1,2*System%OrbSystem(1)%nbas+4+1,1,1)-(&
+       &int6f122(1,3,0,0,2,4)+int6f122(2,4,0,0,1,3)-int6f122(1,4,0,0,2,3)-int6f122(2,3,0,0,1,4))
+  print*, "val=",matM_S(1*System%OrbSystem(1)%nbas+3+1,2*System%OrbSystem(1)%nbas+4+1,1,1)&
+       ,"diff=",matM_S(1*System%OrbSystem(1)%nbas+3+1,2*System%OrbSystem(1)%nbas+4+1,1,1)-(&
+       &int6f122(1,3,0,0,2,4)-int6f122(2,4,0,0,1,3)+int6f122(1,4,0,0,2,3)-int6f122(2,3,0,0,1,4))
+  print*, "val=",matM_T(1*System%OrbSystem(1)%nbas+3+1,2*System%OrbSystem(1)%nbas+4+1,1,1)&
+       &,"diff=",matM_T(1*System%OrbSystem(1)%nbas+3+1,2*System%OrbSystem(1)%nbas+4+1,1,1)-(&
+       &int6f122(1,3,0,0,2,4)-int6f122(2,4,0,0,1,3)-int6f122(1,4,0,0,2,3)+int6f122(2,3,0,0,1,4))
+  do iorb=1,norb
+     matF_S(:,:) = matF_S + matJ_S(:,:,iorb,iorb)! because the 2*J-K
+     matF_T(:,:) = matF_T + matJ_T(:,:,iorb,iorb)! eliminates one of them
+  end do
 
-  if(stage>0) then
+  !    do jorb=1,norb
+  !       do iorb=1,norb
+  !          associate(&
+  !               i_vect => SCF%orb_vector(:,iorb),&
+  !               i_OrbSystem => System%OrbSystem(min(iorb,System%n_orbs)),&
+  !               j_vect => SCF%orb_vector(:,jorb),&
+  !               j_OrbSystem => System%OrbSystem(min(jorb,System%n_orbs)))
 
-     do jorb=1,norb
-        do iorb=1,norb
-           associate(&
-                i_vect => SCF%orb_vector(:,iorb),&
-                i_OrbSystem => System%OrbSystem(min(iorb,System%n_orbs)),&
-                j_vect => SCF%orb_vector(:,jorb),&
-                j_OrbSystem => System%OrbSystem(min(jorb,System%n_orbs)))
+  !            call CCint3_matJ('A',TMP,PairSystem,PairSystem,&
+  !                 i_vect,i_OrbSystem,j_vect,j_OrbSystem)
+  !            matJ_S(:,:,iorb,jorb) = TMP
+  !            matJ_T(:,:,iorb,jorb) = TMP
+  !            if(iorb==jorb) then
+  !               matF_S(:,:) = matF_S + TMP*2._prec
+  !               matF_T(:,:) = matF_T + TMP*2._prec
+  !            endif
+  !            call CCint3_matJ('B',TMP,PairSystem,PairSystem,&
+  !                 i_vect,i_OrbSystem,j_vect,j_OrbSystem)
+  !            matJ_S(:,:,iorb,jorb) = matJ_S(:,:,iorb,jorb) + TMP
+  !            matJ_T(:,:,iorb,jorb) = matJ_T(:,:,iorb,jorb) - TMP
+  !            if(iorb==jorb) then
+  !               matF_S(:,:) = matF_S + TMP*2._prec
+  !               matF_T(:,:) = matF_T - TMP*2._prec
+  !            endif
 
-             call CCint3_matJ('A',TMP,PairSystem,PairSystem,&
-                  i_vect,i_OrbSystem,j_vect,j_OrbSystem)
-             matJ_S(:,:,iorb,jorb) = TMP
-             matJ_T(:,:,iorb,jorb) = TMP
-             if(iorb==jorb) then
-                matF_S(:,:) = matF_S + TMP*2._prec
-                matF_T(:,:) = matF_T + TMP*2._prec
-             endif
-             call CCint3_matJ('B',TMP,PairSystem,PairSystem,&
-                  i_vect,i_OrbSystem,j_vect,j_OrbSystem)
-             matJ_S(:,:,iorb,jorb) = matJ_S(:,:,iorb,jorb) + TMP
-             matJ_T(:,:,iorb,jorb) = matJ_T(:,:,iorb,jorb) - TMP
-             if(iorb==jorb) then
-                matF_S(:,:) = matF_S + TMP*2._prec
-                matF_T(:,:) = matF_T - TMP*2._prec
-             endif
+  !            call CCint3_matK('A',TMP,PairSystem,PairSystem,&
+  !                 i_vect,i_OrbSystem,j_vect,j_OrbSystem)
+  !            matK_S(:,:,iorb,jorb) = TMP
+  !            matK_T(:,:,iorb,jorb) = TMP
+  !            if(iorb==jorb) then
+  !               matF_S(:,:) = matF_S - TMP
+  !               matF_T(:,:) = matF_T - TMP
+  !            endif
+  !            call CCint3_matK('B',TMP,PairSystem,PairSystem,&
+  !                 i_vect,i_OrbSystem,j_vect,j_OrbSystem)
+  !            matK_S(:,:,iorb,jorb) = matK_S(:,:,iorb,jorb) + TMP
+  !            matK_T(:,:,iorb,jorb) = matK_T(:,:,iorb,jorb) - TMP
+  !            if(iorb==jorb) then
+  !               matF_S(:,:) = matF_S - TMP
+  !               matF_T(:,:) = matF_T + TMP
+  !            endif
 
-             call CCint3_matK('A',TMP,PairSystem,PairSystem,&
-                  i_vect,i_OrbSystem,j_vect,j_OrbSystem)
-             matK_S(:,:,iorb,jorb) = TMP
-             matK_T(:,:,iorb,jorb) = TMP
-             if(iorb==jorb) then
-                matF_S(:,:) = matF_S - TMP
-                matF_T(:,:) = matF_T - TMP
-             endif
-             call CCint3_matK('B',TMP,PairSystem,PairSystem,&
-                  i_vect,i_OrbSystem,j_vect,j_OrbSystem)
-             matK_S(:,:,iorb,jorb) = matK_S(:,:,iorb,jorb) + TMP
-             matK_T(:,:,iorb,jorb) = matK_T(:,:,iorb,jorb) - TMP
-             if(iorb==jorb) then
-                matF_S(:,:) = matF_S - TMP
-                matF_T(:,:) = matF_T + TMP
-             endif
+  !            call CCint3_matM('A',TMP,PairSystem,PairSystem,&
+  !                 i_vect,i_OrbSystem,j_vect,j_OrbSystem)
+  !            matM_S(:,:,iorb,jorb) = TMP
+  !            matM_T(:,:,iorb,jorb) = TMP
+  !            call CCint3_matM('B',TMP,PairSystem,PairSystem,&
+  !                 i_vect,i_OrbSystem,j_vect,j_OrbSystem)
+  !            matM_S(:,:,iorb,jorb) = matM_S(:,:,iorb,jorb) - TMP
+  !            matM_T(:,:,iorb,jorb) = matM_T(:,:,iorb,jorb) + TMP
 
-             call CCint3_matM('A',TMP,PairSystem,PairSystem,&
-                  i_vect,i_OrbSystem,j_vect,j_OrbSystem)
-             matM_S(:,:,iorb,jorb) = TMP
-             matM_T(:,:,iorb,jorb) = TMP
-             call CCint3_matM('B',TMP,PairSystem,PairSystem,&
-                  i_vect,i_OrbSystem,j_vect,j_OrbSystem)
-             matM_S(:,:,iorb,jorb) = matM_S(:,:,iorb,jorb) - TMP
-             matM_T(:,:,iorb,jorb) = matM_T(:,:,iorb,jorb) + TMP
+  !          end associate
+  !       enddo
+  !    enddo
 
-           end associate
-        enddo
-     enddo
+  ! else
 
-  else
+  !    do korb=1,norb
+  !       associate(&
+  !            k_vect => SCF%orb_vector(:,korb),&
+  !            k_OrbSystem => System%OrbSystem(min(korb,System%n_orbs)))
 
-     do korb=1,norb
-        associate(&
-             k_vect => SCF%orb_vector(:,korb),&
-             k_OrbSystem => System%OrbSystem(min(korb,System%n_orbs)))
+  !         call CCint3_matJ('A',TMP,PairSystem,PairSystem,k_vect,k_OrbSystem)
+  !         matF_S(:,:) = matF_S + TMP*2._prec
+  !         matF_T(:,:) = matF_T + TMP*2._prec
+  !         call CCint3_matJ('B',TMP,PairSystem,PairSystem,k_vect,k_OrbSystem)
+  !         matF_S(:,:) = matF_S + TMP*2._prec
+  !         matF_T(:,:) = matF_T - TMP*2._prec
 
-          call CCint3_matJ('A',TMP,PairSystem,PairSystem,k_vect,k_OrbSystem)
-          matF_S(:,:) = matF_S + TMP*2._prec
-          matF_T(:,:) = matF_T + TMP*2._prec
-          call CCint3_matJ('B',TMP,PairSystem,PairSystem,k_vect,k_OrbSystem)
-          matF_S(:,:) = matF_S + TMP*2._prec
-          matF_T(:,:) = matF_T - TMP*2._prec
+  !         call CCint3_matK('A',TMP,PairSystem,PairSystem,k_vect,k_OrbSystem)
+  !         matF_S(:,:) = matF_S - TMP
+  !         matF_T(:,:) = matF_T - TMP
+  !         call CCint3_matK('B',TMP,PairSystem,PairSystem,k_vect,k_OrbSystem)
+  !         matF_S(:,:) = matF_S - TMP
+  !         matF_T(:,:) = matF_T + TMP
 
-          call CCint3_matK('A',TMP,PairSystem,PairSystem,k_vect,k_OrbSystem)
-          matF_S(:,:) = matF_S - TMP
-          matF_T(:,:) = matF_T - TMP
-          call CCint3_matK('B',TMP,PairSystem,PairSystem,k_vect,k_OrbSystem)
-          matF_S(:,:) = matF_S - TMP
-          matF_T(:,:) = matF_T + TMP
+  !       end associate
+  !    enddo
 
-        end associate
-     enddo
+  call make_p1(System%OrbSystem(1)%nbas,norb,matP1_S,matP1_T,SCF%orb_energy,matPe_S,matPe_T)
 
-  endif
+  ! endif
+  ! matP1_S = 0._prec
+  ! matP1_T = 0._prec
+  ! matPe_S = 0._prec
+  ! matPe_T = 0._prec
+  ! do korb=1,norb
+  !    associate(&
+  !         k_ener => SCF%orb_energy(korb),&
+  !         k_vect => SCF%orb_vector(:,korb),&
+  !         k_OrbSystem => System%OrbSystem(min(korb,System%n_orbs)))
 
-  matP1_S = 0._prec
-  matP1_T = 0._prec
-  matPe_S = 0._prec
-  matPe_T = 0._prec
-  do korb=1,norb
-     associate(&
-          k_ener => SCF%orb_energy(korb),&
-          k_vect => SCF%orb_vector(:,korb),&
-          k_OrbSystem => System%OrbSystem(min(korb,System%n_orbs)))
+  !      call CCint3_matP('A',0,TMP,PairSystem,PairSystem,k_vect,k_OrbSystem)
+  !      matP1_S(:,:) = matP1_S + TMP
+  !      matP1_T(:,:) = matP1_T + TMP
+  !      matPe_S(:,:) = matPe_S + TMP*k_ener
+  !      matPe_T(:,:) = matPe_T + TMP*k_ener
+  !      call CCint3_matP('B',0,TMP,PairSystem,PairSystem,k_vect,k_OrbSystem)
+  !      matP1_S(:,:) = matP1_S + TMP
+  !      matP1_T(:,:) = matP1_T - TMP
+  !      matPe_S(:,:) = matPe_S + TMP*k_ener
+  !      matPe_T(:,:) = matPe_T - TMP*k_ener
 
-       call CCint3_matP('A',0,TMP,PairSystem,PairSystem,k_vect,k_OrbSystem)
-       matP1_S(:,:) = matP1_S + TMP
-       matP1_T(:,:) = matP1_T + TMP
-       matPe_S(:,:) = matPe_S + TMP*k_ener
-       matPe_T(:,:) = matPe_T + TMP*k_ener
-       call CCint3_matP('B',0,TMP,PairSystem,PairSystem,k_vect,k_OrbSystem)
-       matP1_S(:,:) = matP1_S + TMP
-       matP1_T(:,:) = matP1_T - TMP
-       matPe_S(:,:) = matPe_S + TMP*k_ener
-       matPe_T(:,:) = matPe_T - TMP*k_ener
+  !      if(stage>0) then
+  !         call CCint3_matP('A',-1,TMP,PairSystem,PairSystem,k_vect,k_OrbSystem)
+  !         matL1_S(:,:) = matL1_S - TMP
+  !         matL1_T(:,:) = matL1_T - TMP
+  !         call CCint3_matP('B',-1,TMP,PairSystem,PairSystem,k_vect,k_OrbSystem)
+  !         matL1_S(:,:) = matL1_S - TMP
+  !         matL1_T(:,:) = matL1_T + TMP
+  !      endif
 
-       if(stage>0) then
-          call CCint3_matP('A',-1,TMP,PairSystem,PairSystem,k_vect,k_OrbSystem)
-          matL1_S(:,:) = matL1_S - TMP
-          matL1_T(:,:) = matL1_T - TMP
-          call CCint3_matP('B',-1,TMP,PairSystem,PairSystem,k_vect,k_OrbSystem)
-          matL1_S(:,:) = matL1_S - TMP
-          matL1_T(:,:) = matL1_T + TMP
-       endif
+  !    end associate
+  ! enddo
 
-     end associate
-  enddo
+  call make_vecP(System%OrbSystem(1)%nbas,norb,vecP,intinterm12)
 
-  vecP = 0._prec
-  do jorb=1,norb
-     do iorb=1,norb
-        associate(&
-             i_vect => SCF%orb_vector(:,iorb),&
-             j_vect => SCF%orb_vector(:,jorb),&
-             i_OrbSystem => System%OrbSystem(min(iorb,System%n_orbs)),&
-             j_OrbSystem => System%OrbSystem(min(jorb,System%n_orbs)))
-          do korb=1,norb
-             associate(&
-                  k_vect => SCF%orb_vector(:,korb),&
-                  k_OrbSystem => System%OrbSystem(min(korb,System%n_orbs)))
+  ! vecP = 0._prec
+  ! do jorb=1,norb
+  !    do iorb=1,norb
+  !       associate(&
+  !            i_vect => SCF%orb_vector(:,iorb),&
+  !            j_vect => SCF%orb_vector(:,jorb),&
+  !            i_OrbSystem => System%OrbSystem(min(iorb,System%n_orbs)),&
+  !            j_OrbSystem => System%OrbSystem(min(jorb,System%n_orbs)))
+  !         do korb=1,norb
+  !            associate(&
+  !                 k_vect => SCF%orb_vector(:,korb),&
+  !                 k_OrbSystem => System%OrbSystem(min(korb,System%n_orbs)))
 
-               call CCint3_vecP(TMP(:,1),PairSystem,&
-                    i_vect,i_OrbSystem,j_vect,j_OrbSystem,&
-                    k_vect,k_OrbSystem)
-               vecP(:,iorb,jorb) = vecP(:,iorb,jorb) + TMP(:,1)
+  !              call CCint3_vecP(TMP(:,1),PairSystem,&
+  !                   i_vect,i_OrbSystem,j_vect,j_OrbSystem,&
+  !                   k_vect,k_OrbSystem)
+  !              vecP(:,iorb,jorb) = vecP(:,iorb,jorb) + TMP(:,1)
 
-             end associate
-          enddo
-        end associate
-     enddo
-  enddo
+  !            end associate
+  !         enddo
+  !       end associate
+  !    enddo
+  ! enddo
+  ! call free_CCint3
 
-  call free_CCint3
-  if(fullPRINT) then
-     call timer('3-el integrals use',Tcpu,Twall)
-     flush(LOUT)
-  endif
 
   matP2_S = 0._prec
   matP2_T = 0._prec
@@ -508,17 +587,25 @@ associate(PairSystem => System%PairSystem(1,1))
         matP2_S(:,:) = matP2_S + TMP
         if(iorb/=jorb) matP2_T(:,:) = matP2_T - TMP
 
-        if(stage>0) then
-           call outerMat(nbas,1._prec,vec0(:,iorb,jorb),vec1(:,iorb,jorb),TMP)
-           matL1_S(:,:) = matL1_S + TMP
-           if(iorb/=jorb) matL1_T(:,:) = matL1_T + TMP
-           call outerMat(nbas,1._prec,vec0(:,iorb,jorb),vec1(:,jorb,iorb),TMP)
-           matL1_S(:,:) = matL1_S + TMP
-           if(iorb/=jorb) matL1_T(:,:) = matL1_T - TMP
-        endif
+        ! if(stage>0) then
+        !    call outerMat(nbas,1._prec,vec0(:,iorb,jorb),vec1(:,iorb,jorb),TMP)
+        !    matL1_S(:,:) = matL1_S + TMP
+        !    if(iorb/=jorb) matL1_T(:,:) = matL1_T + TMP
+        !    call outerMat(nbas,1._prec,vec0(:,iorb,jorb),vec1(:,jorb,iorb),TMP)
+        !    matL1_S(:,:) = matL1_S + TMP
+        !    if(iorb/=jorb) matL1_T(:,:) = matL1_T - TMP
+        ! endif
 
      enddo
   enddo
+
+  if(fullPRINT) then
+     call timer('3-el integrals use',Tcpu,Twall)
+     flush(LOUT)
+  endif
+
+  deallocate(int6f122,intinterm2,intinterm1,intinterm12,intinterm22,intildef12,intildef122)
+  !modtg
 
   call mem_dealloc(TMP)
 

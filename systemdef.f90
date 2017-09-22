@@ -755,6 +755,9 @@ if(icnt/=PairSystem%n_prim) then
 endif
 
 PairSystem%nbas = offset
+! !modtg
+! PairSystem%nbas = 
+! !/modtg
 
 end subroutine create_PairSystem
 

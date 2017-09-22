@@ -143,10 +143,11 @@ do i = 1, nbas
    matS(i,i)=1._prec
    matH(i,i)=real(i-1,prec)+0.5_prec
 end do
-call import_gh
 call import_factorials
+call make_norm
+call import_gh
 call gener_hermiteh_gh(2._prec)
-!call create_SCF_file(nbas)
+call create_SCF_file(nbas)
 call read_SCF_file(nbas,twoel,tgg)
 ! do i = 1, nbas**2
 !    do j = 1, nbas**2
