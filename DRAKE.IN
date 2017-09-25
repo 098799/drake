@@ -1,6 +1,6 @@
 #
 z    = 0        ! ladunek
-norb = 2        ! liczba orbitali
+norb = 1        ! liczba orbitali
 calc = fccd
 eta=11
 6 5 4 3 2 1 0 -1 -2 -3 -100

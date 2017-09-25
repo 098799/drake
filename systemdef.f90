@@ -389,7 +389,7 @@ if(System%post_SCF) then
                 diff,expSQ_restrict)
            call check_PairSystem(PairSystem)
            !modtg
-           PairSystem%nbas = Input%TGNBAS**2
+           PairSystem%nbas = Input%TGNBAS*(Input%TGNBAS+1)/2
            !modtg
 
            prim_all(:,sumprim_pairs+1:sumprim_pairs+nprim_pairs) = &
@@ -755,9 +755,6 @@ if(icnt/=PairSystem%n_prim) then
 endif
 
 PairSystem%nbas = offset
-! !modtg
-! PairSystem%nbas = 
-! !/modtg
 
 end subroutine create_PairSystem
 

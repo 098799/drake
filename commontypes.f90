@@ -1780,78 +1780,116 @@ contains
 
 end subroutine print_two_PairReduced
 
-subroutine init_Triplet(Triplet,PairSystem)
-implicit none
-type(TripletData) :: Triplet
-type(PairSystemData),intent(in) :: PairSystem
-integer :: i_prim
-integer :: ibas_orig,ibas
-integer :: u,v,t,flag
+subroutine init_Triplet(Triplet,nbas)
+  implicit none
+  type(TripletData) :: Triplet
+  integer :: ibas_orig,ibas,nbas
+  integer :: i,j
 
-Triplet%restrict  = .false.
+  Triplet%restrict  = .true.
 
-Triplet%nbas      = PairSystem%nbas
-Triplet%nbas_orig = PairSystem%nbas
+  Triplet%nbas      = ((nbas-1)*nbas)/2
+  Triplet%nbas_orig = (nbas*(nbas+1))/2
 
-do i_prim=1,PairSystem%n_prim
-   associate(PairSpec => PairSystem%PairSpec(i_prim))
+  if(Triplet%restrict) then
 
-     Triplet%restrict = Triplet%restrict.or.PairSpec%restrict
+     call mem_alloc(Triplet%idxS,Triplet%nbas_orig)
+     call mem_alloc(Triplet%idxE,Triplet%nbas_orig)
 
-   end associate
-enddo
+     Triplet%idxS = 0
+     Triplet%idxE = 0
 
-if(Triplet%restrict) then
+     ibas_orig = 0
+     ibas      = 0
 
-   call mem_alloc(Triplet%idxS,Triplet%nbas_orig)
-   call mem_alloc(Triplet%idxE,Triplet%nbas_orig)
-
-   Triplet%idxS = 0
-   Triplet%idxE = 0
-
-   ibas_orig = 0
-   ibas      = 0
-   do i_prim=1,PairSystem%n_prim
-      associate(PairSpec => PairSystem%PairSpec(i_prim))
-
-        if(PairSpec%restrict) then
-
-           flag = -1
-           do while(increment_PairSpec(u,v,t,flag,PairSpec))
-              ibas_orig = ibas_orig + 1
-              if(u/=v) then
-                 ibas      = ibas + 1
-                 Triplet%idxS(ibas)      = ibas_orig
-                 Triplet%idxE(ibas_orig) = ibas
-              endif
-           enddo
-
-        else
-
-           do flag=1,PairSpec%nbas
-              ibas_orig = ibas_orig + 1
+     do j=1,nbas
+        do i=1,j
+           ibas_orig = ibas_orig + 1
+           if(i/=j) then
               ibas      = ibas + 1
               Triplet%idxS(ibas)      = ibas_orig
               Triplet%idxE(ibas_orig) = ibas
-           enddo
+           endif
+        enddo
+     enddo
 
-        endif
-
-      end associate
-   enddo
-   print*, ibas, ibas_orig, PairSystem%nbas
-   stop
-   if(ibas_orig/=PairSystem%nbas) then
-      write(LOUT,'(a)') 'ERROR!!! &
-           &Incorrect original number of basis functions in init_Triplet!'
-      stop
-   endif
-
-   Triplet%nbas = ibas
-
-endif
+  endif
 
 end subroutine init_Triplet
+
+
+! subroutine init_Triplet(Triplet,PairSystem)
+! implicit none
+! type(TripletData) :: Triplet
+! type(PairSystemData),intent(in) :: PairSystem
+! integer :: i_prim
+! integer :: ibas_orig,ibas
+! integer :: u,v,t,flag
+
+! Triplet%restrict  = .false.
+
+! Triplet%nbas      = PairSystem%nbas
+! Triplet%nbas_orig = PairSystem%nbas
+
+! do i_prim=1,PairSystem%n_prim
+!    associate(PairSpec => PairSystem%PairSpec(i_prim))
+
+!      Triplet%restrict = Triplet%restrict.or.PairSpec%restrict
+
+!    end associate
+! enddo
+
+! if(Triplet%restrict) then
+
+!    call mem_alloc(Triplet%idxS,Triplet%nbas_orig)
+!    call mem_alloc(Triplet%idxE,Triplet%nbas_orig)
+
+!    Triplet%idxS = 0
+!    Triplet%idxE = 0
+
+!    ibas_orig = 0
+!    ibas      = 0
+!    do i_prim=1,PairSystem%n_prim
+!       associate(PairSpec => PairSystem%PairSpec(i_prim))
+
+!         if(PairSpec%restrict) then
+
+!            flag = -1
+!            do while(increment_PairSpec(u,v,t,flag,PairSpec))
+!               ibas_orig = ibas_orig + 1
+!               if(u/=v) then
+!                  ibas      = ibas + 1
+!                  Triplet%idxS(ibas)      = ibas_orig
+!                  Triplet%idxE(ibas_orig) = ibas
+!               endif
+!            enddo
+
+!         else
+
+!            do flag=1,PairSpec%nbas
+!               ibas_orig = ibas_orig + 1
+!               ibas      = ibas + 1
+!               Triplet%idxS(ibas)      = ibas_orig
+!               Triplet%idxE(ibas_orig) = ibas
+!            enddo
+
+!         endif
+
+!       end associate
+!    enddo
+!    print*, ibas, ibas_orig, PairSystem%nbas
+!    stop
+!    if(ibas_orig/=PairSystem%nbas) then
+!       write(LOUT,'(a)') 'ERROR!!! &
+!            &Incorrect original number of basis functions in init_Triplet!'
+!       stop
+!    endif
+
+!    Triplet%nbas = ibas
+
+! endif
+
+! end subroutine init_Triplet
 
 subroutine free_Triplet(Triplet)
 implicit none
