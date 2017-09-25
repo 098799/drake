@@ -45,7 +45,7 @@ contains
     implicit none
     integer    :: m,n
     integer    :: i,j,k,l,al,p,ij,kl
-    real(prec) :: temp,temp2,tempe,tempe2
+    real(prec) :: temp,tempe
     real(prec) :: tempp,tttemp
     real(prec) :: matps(:,:), matpt(:,:), matpes(:,:), matpet(:,:)
     real(prec) :: eorb(n)
@@ -53,76 +53,64 @@ contains
     matpt  = 0._prec
     matpes = 0._prec
     matpet = 0._prec
-    print*, eorb
-    stop
     do l = 0, m-1
        do k = 0, l
           kl=l*(l+1)/2+k+1
           do j = 0, m-1
              do i = 0, j
                 ij=j*(j+1)/2+i+1
-                temp2 = 0._prec
-                tempe2 = 0._prec
+                temp = 0._prec
+                tempe = 0._prec
                 do p = 0, ROIsum
-                   temp = 0._prec
-                   tempe = 0._prec
                    do al = 0, n-1
                       tttemp = intf12(i,j,al,p,3._prec)*intf12(al,p,k,l,3._prec)
                       temp = temp + tttemp
                       tempe = tempe + tttemp*eorb(al+1)
                    end do
-                   temp2 = temp2 + temp
-                   tempe2 = tempe2 + tempe
                 end do
-                matps(ij,kl) = matps(ij,kl) + temp2
-                matpt(ij,kl) = matpt(ij,kl) + temp2
-                matpes(ij,kl) = matpes(ij,kl) + tempe2
-                matpet(ij,kl) = matpet(ij,kl) + tempe2
+                matps(ij,kl) = matps(ij,kl) + temp
+                matpt(ij,kl) = matpt(ij,kl) + temp
+                matpes(ij,kl) = matpes(ij,kl) + tempe
+                matpet(ij,kl) = matpet(ij,kl) + tempe
+                temp = 0._prec
+                tempe = 0._prec
                 do p = 0, ROIsum
-                   temp = 0._prec
-                   tempe = 0._prec
                    do al = 0, n-1
                       tttemp = intf12(j,i,al,p,3._prec)*intf12(al,p,l,k,3._prec)
                       temp = temp + tttemp
                       tempe = tempe + tttemp*eorb(al+1)
                    end do
-                   temp2 = temp2 + temp
-                   tempe2 = tempe2 + tempe
                 end do
-                matps(ij,kl) = matps(ij,kl) + temp2
-                matpt(ij,kl) = matpt(ij,kl) + temp2
-                matpes(ij,kl) = matpes(ij,kl) + tempe2
-                matpet(ij,kl) = matpet(ij,kl) + tempe2
+                matps(ij,kl) = matps(ij,kl) + temp
+                matpt(ij,kl) = matpt(ij,kl) + temp
+                matpes(ij,kl) = matpes(ij,kl) + tempe
+                matpet(ij,kl) = matpet(ij,kl) + tempe
+                temp = 0._prec
+                tempe = 0._prec
                 do p = 0, ROIsum
-                   temp = 0._prec
-                   tempe = 0._prec
                    do al = 0, n-1
                       tttemp = intf12(j,i,al,p,3._prec)*intf12(al,p,k,l,3._prec)
                       temp = temp + tttemp
                       tempe = tempe + tttemp*eorb(al+1)
                    end do
-                   temp2 = temp2 + temp
-                   tempe2 = tempe2 + tempe
                 end do
-                matps(ij,kl) = matps(ij,kl) + temp2
-                matpt(ij,kl) = matpt(ij,kl) - temp2
-                matpes(ij,kl) = matpes(ij,kl) + tempe2
-                matpet(ij,kl) = matpet(ij,kl) - tempe2
+                matps(ij,kl) = matps(ij,kl) + temp
+                matpt(ij,kl) = matpt(ij,kl) - temp
+                matpes(ij,kl) = matpes(ij,kl) + tempe
+                matpet(ij,kl) = matpet(ij,kl) - tempe
+                temp = 0._prec
+                tempe = 0._prec
                 do p = 0, ROIsum
-                   temp = 0._prec
-                   tempe = 0._prec
                    do al = 0, n-1
                       tttemp = intf12(i,j,al,p,3._prec)*intf12(al,p,l,k,3._prec)
                       temp = temp + tttemp
                       tempe = tempe + tttemp*eorb(al+1)
                    end do
-                   temp2 = temp2 + temp
-                   tempe2 = tempe2 + tempe
                 end do
-                matps(ij,kl) = matps(ij,kl) + temp2
-                matpt(ij,kl) = matpt(ij,kl) - temp2
-                matpes(ij,kl) = matpes(ij,kl) + tempe2
-                matpet(ij,kl) = matpet(ij,kl) - tempe2
+                matps(ij,kl) = matps(ij,kl) + temp
+                matpt(ij,kl) = matpt(ij,kl) - temp
+                matpes(ij,kl) = matpes(ij,kl) + tempe
+                matpet(ij,kl) = matpet(ij,kl) - tempe
              end do
           end do
        end do
