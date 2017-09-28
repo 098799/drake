@@ -19,6 +19,7 @@ public maxOmega_PairSpec,maxt_PairSpec,maxuv_PairSpec
 public maxOmega_PairReduced,maxt_PairReduced,maxuv_PairReduced
 public TripletData,init_Triplet,free_Triplet,shrink_Triplet,expand_Triplet
 public SCForbitalsData,init_SCForbitals,free_SCForbitals,print_SCForbitals
+public init_OV_S,init_OV_T
 
 interface maxuv_PairReduced
 module procedure maxuv_PairReduced_not
@@ -1817,6 +1818,83 @@ subroutine init_Triplet(Triplet,nbas)
 
 end subroutine init_Triplet
 
+subroutine init_OV_S(OV_S,nocc,nbas)
+  implicit none
+  type(TripletData) :: OV_S
+  integer :: ibas_orig,ibas,nocc,nbas
+  integer :: i,j
+
+  OV_S%restrict  = .true.
+
+  OV_S%nbas      = (nbas-nocc)*(nbas-nocc+1)/2 !(nbas*(nbas+1))/2 - nocc*(nbas-nocc)
+  OV_S%nbas_orig = (nbas*(nbas+1))/2
+
+  if(OV_S%restrict) then
+
+     call mem_alloc(OV_S%idxS,OV_S%nbas_orig)
+     call mem_alloc(OV_S%idxE,OV_S%nbas_orig)
+
+     OV_S%idxS = 0
+     OV_S%idxE = 0
+
+     ibas_orig = 0
+     ibas      = 0
+
+     do j=1,nbas
+        do i=1,j
+           ibas_orig = ibas_orig + 1
+           if(i>nocc) then
+           ! if(j<=nocc.or.i>nocc) then
+              ibas      = ibas + 1
+              OV_S%idxS(ibas)      = ibas_orig
+              OV_S%idxE(ibas_orig) = ibas
+
+           endif
+        enddo
+     enddo
+
+  endif
+
+end subroutine init_OV_S
+
+subroutine init_OV_T(OV_T,nocc,nbas)
+  implicit none
+  type(TripletData) :: OV_T
+  integer :: ibas_orig,ibas,nocc,nbas
+  integer :: i,j
+
+  OV_T%restrict  = .true.
+
+  OV_T%nbas      = (nbas-nocc-1)*(nbas-nocc)/2 !((nbas-1)*nbas)/2 - nocc*(nbas-nocc)
+  OV_T%nbas_orig = ((nbas-1)*nbas)/2
+
+  if(OV_T%restrict) then
+
+     call mem_alloc(OV_T%idxS,OV_T%nbas_orig)
+     call mem_alloc(OV_T%idxE,OV_T%nbas_orig)
+
+     OV_T%idxS = 0
+     OV_T%idxE = 0
+
+     ibas_orig = 0
+     ibas      = 0
+
+     do j=2,nbas
+        do i=1,j-1
+           ibas_orig = ibas_orig + 1
+           if(i>nocc) then
+           ! if(j<=nocc.or.i>nocc) then
+              ibas      = ibas + 1
+              OV_T%idxS(ibas)      = ibas_orig
+              OV_T%idxE(ibas_orig) = ibas
+           endif
+        enddo
+     enddo
+
+  endif
+
+end subroutine init_OV_T
+
 
 ! subroutine init_Triplet(Triplet,PairSystem)
 ! implicit none
@@ -1917,6 +1995,7 @@ if(Triplet%restrict) then
 
       j_idx = Triplet%idxS(jbas)
       do ibas=1,Triplet%nbas
+         ! print*, Triplet%idxS(ibas),j_idx
          mat(ibas,jbas) = mat(Triplet%idxS(ibas),j_idx)
       enddo
       mat(Triplet%nbas+1:,jbas) = 0._prec
@@ -2054,8 +2133,8 @@ do i=1,System%n_orbs
    end associate
 enddo
 
-call mem_alloc(SCForbitals%orb_energy,SCForbitals%norb)
-call mem_alloc(SCForbitals%orb_vector,SCForbitals%nbas,SCForbitals%norb)
+call mem_alloc(SCForbitals%orb_energy,SCForbitals%nbas)
+call mem_alloc(SCForbitals%orb_vector,SCForbitals%nbas,SCForbitals%nbas)
 call mem_alloc(SCForbitals%pair_energy,&
      SCForbitals%norb,SCForbitals%norb,&
      SCForbitals%norb*(SCForbitals%norb + 1)/2)

@@ -167,7 +167,7 @@ real(prec),allocatable :: matP1_S(:,:),matP1_T(:,:)
 real(prec),allocatable :: matPe_S(:,:),matPe_T(:,:)
 real(prec),allocatable :: matP2_S(:,:),matP2_T(:,:)
 real(prec),allocatable :: matL1_S(:,:),matL1_T(:,:)
-real(prec),allocatable :: matJ_S(:,:,:,:),matJ_T(:,:,:,:),int6f122(:,:,:,:,:,:)
+real(prec),allocatable :: matJ_S(:,:,:,:),matJ_T(:,:,:,:)
 real(prec),allocatable :: matK_S(:,:,:,:),matK_T(:,:,:,:)
 real(prec),allocatable :: matM_S(:,:,:,:),matM_T(:,:,:,:)
 real(prec),allocatable :: vec0(:,:,:),vec1(:,:,:),vecP(:,:,:)
@@ -176,7 +176,7 @@ real(prec),allocatable :: TMP(:,:)
 type(CCpairData),allocatable :: CCpairs(:,:)
 real(prec),allocatable :: energy(:,:,:),orthog(:,:,:)
 integer,allocatable :: final_iter(:)
-type(TripletData) :: Triplet
+type(TripletData) :: Triplet,OV_S,OV_T
 real(prec),allocatable :: LHS(:,:),RHS(:)
 type(DecompositionData) :: project_S,project_T
 type(DecompositionData),allocatable :: pairLHS(:,:)
@@ -187,14 +187,19 @@ integer :: DIIS_start,DIIS_size
 logical :: DIIS
 integer :: DIIS_off,DIIS_n
 real(dble) :: Tcpu,Twall
-integer :: i,j,k,l,m,n,caunta,caounta,counta,countb
+integer :: i,j,k,l,m,n,caunta,caounta,counta,countb,ii,jj
 real(prec) :: val1,val2,val3,val4,ttemp
 !!! some of my shit
-real(prec), allocatable :: intildef12(:,:),intildef122(:,:),intinterm1(:,:,:)
+real(prec), allocatable :: intildef12(:,:),intildef122(:,:),intinterm1(:,:,:),mH(:,:,:,:)
 real(prec), allocatable :: intinterm2(:,:,:),intinterm12(:,:,:,:),intinterm22(:,:,:,:)
+real(preC), allocatable :: intf12(:,:,:,:),ROIs(:,:,:,:),int6f12(:,:,:,:,:,:),int6f122(:,:,:,:,:,:)
 allocate(intildef12(0:newhn,0:newhn),intildef122(0:newhn,0:newhn))
 allocate(intinterm1(0:newhn,0:newhn,0:newhn),intinterm2(0:newhn,0:newhn,0:newhn))
 allocate(intinterm12(0:newhn,0:newhn,0:newhn,0:newhn),intinterm22(0:newhn,0:newhn,0:newhn,0:newhn))
+! allocate(ROIs(0:System%OrbSystem(1)%nbas-1,0:System%OrbSystem(1)%nbas-1,&
+!      0:System%OrbSystem(1)%nbas-1,0:System%OrbSystem(1)%nbas-1))
+allocate(intf12(0:newhn+20,0:newhn+20,0:newhn+20,0:newhn+20))
+allocate(mH(System%OrbSystem(1)%nbas,System%OrbSystem(1)%nbas,System%OrbSystem(1)%nbas,System%OrbSystem(1)%nbas))
 !!! some of my shit
 
 LPRINT = merge(Control%LPRINT,0,fullPRINT)
@@ -235,17 +240,19 @@ associate(PairSystem => System%PairSystem(1,1))
   call mem_alloc(matP1_S,nbas,nbas); call mem_alloc(matP1_T,nbas,nbas)
   call mem_alloc(matPe_S,nbas,nbas); call mem_alloc(matPe_T,nbas,nbas)
   call mem_alloc(matP2_S,nbas,nbas); call mem_alloc(matP2_T,nbas,nbas)
-  if(stage>0) then
+  allocate(int6f122(0:System%OrbSystem(1)%nbas-1,0:System%OrbSystem(1)%nbas-1,&
+       &0:norb-1,0:norb-1,0:System%OrbSystem(1)%nbas-1,0:System%OrbSystem(1)%nbas-1))
+  allocate(int6f12(0:System%OrbSystem(1)%nbas-1,0:System%OrbSystem(1)%nbas-1,&
+       &0:norb-1,0:norb-1,0:System%OrbSystem(1)%nbas-1,0:System%OrbSystem(1)%nbas-1))
+  if (stage>0) then
      call mem_alloc(matL1_S,nbas,nbas); call mem_alloc(matL1_T,nbas,nbas)
-     allocate(int6f122(0:System%OrbSystem(1)%nbas-1,0:System%OrbSystem(1)%nbas-1,&
-          &0:norb-1,0:norb-1,0:System%OrbSystem(1)%nbas-1,0:System%OrbSystem(1)%nbas-1))
      call mem_alloc(matJ_S,nbas,nbas,norb,norb)
      call mem_alloc(matJ_T,nbas,nbas,norb,norb)
      call mem_alloc(matK_S,nbas,nbas,norb,norb)
      call mem_alloc(matK_T,nbas,nbas,norb,norb)
      call mem_alloc(matM_S,nbas,nbas,norb,norb)
      call mem_alloc(matM_T,nbas,nbas,norb,norb)
-  endif
+  end if
 
   call mem_alloc(vec0,nbas,norb,norb)
   call mem_alloc(vec1,nbas,norb,norb)
@@ -293,7 +300,18 @@ associate(PairSystem => System%PairSystem(1,1))
   ! print*, intf12(20,20,20,20,3._prec)
   ! stop
 
-  ! ! CREATEMODE
+  ! CREATEMODE
+  ! call read_f12(intf12)
+  ! call create_ROI(System%OrbSystem(1)%nbas,norb,counta,intf12)
+  ! call read_ROI(counta,ROIs)
+  ! call create_matS_file(System%OrbSystem(1)%nbas,norb,counta,intf12)
+  ! call read_matS_file(System%OrbSystem(1)%nbas,matS_S,matS_T,counta)
+  ! if(stage>0) then
+  !    call create_matL1_file(System%OrbSystem(1)%nbas,norb,System%OrbSystem(1)%tgg,counta)
+  !    call read_matL1_file(System%OrbSystem(1)%nbas,matL1_S,matL1_T,counta)
+  ! endif
+  ! call create_matH_file(System%OrbSystem(1)%nbas,norb,counta,intf12)
+  ! call read_matH_file(System%OrbSystem(1)%nbas,matF_S,matF_T,counta)
   ! call create_intildef12_file()
   ! call read_intildef12_file(intildef12)
   ! call create_interm1_file(intildef12)
@@ -306,58 +324,50 @@ associate(PairSystem => System%PairSystem(1,1))
   ! call read_interm2_file(intinterm2)
   ! call create_interm22_file(intinterm2)
   ! call read_interm22_file(intinterm22)
-  ! call create_matS_file(System%OrbSystem(1)%nbas,counta,countb)
-  ! call read_matS_file(System%OrbSystem(1)%nbas,matS_S,matS_T,counta,countb)
-  ! if(stage>0) then
-  !    matL1_S(:,:) = 0._prec
-  !    matL1_T(:,:) = 0._prec
-  ! endif
-  ! do i = 1, nbas
-  !    do j = 1, nbas
-  !       if (matS_T(j,i).NE.0) print*, matS_T(i,j)-matS_T(j,i),matS_T(i,j),matS_T(j,i)
-  !    end do
-  ! end do
-  ! call create_matH_file(System%OrbSystem(1)%nbas,counta,countb)
-  ! call read_matH_file(System%OrbSystem(1)%nbas,matF_S,matF_T,counta,countb)
-  ! call create_int2_vec_file(System%OrbSystem(1)%nbas,norb,caounta)
-  ! call read_int2_vec_file(vec0,System%OrbSystem(1)%nbas,norb,caounta)
-  ! vec1(:,:,:) = 0._prec
+  ! call create_int2_vec_file(System%OrbSystem(1)%nbas,norb,counta,countb,intf12)
+  ! call read_int2_vec_file(vec0,vec1,System%OrbSystem(1)%nbas,norb,System%OrbSystem(1)%tgg,counta,countb)
   ! call create_int6f122_file(System%OrbSystem(1)%nbas,norb,intinterm22,caunta)
   ! call read_int6f122_file(System%OrbSystem(1)%nbas,norb,System%OrbSystem(1)%tgg,int6f122,caunta)
+  ! call create_int6f12_file(System%OrbSystem(1)%nbas,norb,intinterm12,caunta)
+  ! call read_int6f12_file(System%OrbSystem(1)%nbas,norb,System%OrbSystem(1)%tgg,int6f12,caunta)
 
-  ! READMODE
-  call create_matS_file(System%OrbSystem(1)%nbas,counta,countb)
-  call read_matS_file(System%OrbSystem(1)%nbas,matS_S,matS_T,counta,countb)
+  ! ! READMODE
+  call read_f12(intf12)
+  ! call create_ROI(System%OrbSystem(1)%nbas,norb,counta,intf12)
+  ! call read_ROI(counta,ROIs)
+  call create_matS_file(System%OrbSystem(1)%nbas,norb,counta,intf12)
+  call read_matS_file(System%OrbSystem(1)%nbas,matS_S,matS_T,counta)
   if(stage>0) then
-     matL1_S(:,:) = 0._prec
-     matL1_T(:,:) = 0._prec
+     call create_matL1_file(System%OrbSystem(1)%nbas,norb,System%OrbSystem(1)%tgg,counta)
+     call read_matL1_file(System%OrbSystem(1)%nbas,matL1_S,matL1_T,counta)
   endif
-  call create_matH_file(System%OrbSystem(1)%nbas,counta,countb)
-  call read_matH_file(System%OrbSystem(1)%nbas,matF_S,matF_T,counta,countb)
+  call create_matH_file(System%OrbSystem(1)%nbas,norb,counta,intf12)
+  call read_matH_file(System%OrbSystem(1)%nbas,matF_S,matF_T,counta)
   call read_intildef12_file(intildef12)
   call read_interm1_file(intinterm1)
   call read_interm12_file(intinterm12)
   call read_intildef122_file(intildef122)
   call read_interm2_file(intinterm2)
   call read_interm22_file(intinterm22)
-  call create_int2_vec_file(System%OrbSystem(1)%nbas,norb,caounta)
-  call read_int2_vec_file(vec0,System%OrbSystem(1)%nbas,norb,caounta)
-  vec1(:,:,:) = 0._prec
+  call create_int2_vec_file(System%OrbSystem(1)%nbas,norb,counta,countb,intf12)
+  call read_int2_vec_file(vec0,vec1,System%OrbSystem(1)%nbas,norb,System%OrbSystem(1)%tgg,counta,countb)
   call create_int6f122_file(System%OrbSystem(1)%nbas,norb,intinterm22,caunta)
   call read_int6f122_file(System%OrbSystem(1)%nbas,norb,System%OrbSystem(1)%tgg,int6f122,caunta)
+  call create_int6f12_file(System%OrbSystem(1)%nbas,norb,intinterm12,caunta)
+  call read_int6f12_file(System%OrbSystem(1)%nbas,norb,System%OrbSystem(1)%tgg,int6f12,caunta)
 
   write(LOUT,'(a)') "**  Checking                                  **"
-  call check('dzejmu',intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22)
-  call check('intf12',intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22)
-  call check('intf122',intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22)
-  call check('imunudf122norm',intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22)
-  call check('intdf122',intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22)
-  call check('imunutildef12norm',intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22)
-  call check('imunutildef122norm',intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22)
-  call check('intildef12',intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22)
-  call check('inttildef12',intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22)
-  call check('intildef122',intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22)
-  call check('inttildef122',intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22)
+  call check('dzejmu',intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22,intf12)
+  call check('intf12',intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22,intf12)
+  call check('intf122',intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22,intf12)
+  call check('imunudf122norm',intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22,intf12)
+  call check('intdf122',intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22,intf12)
+  call check('imunutildef12norm',intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22,intf12)
+  call check('imunutildef122norm',intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22,intf12)
+  call check('intildef12',intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22,intf12)
+  call check('inttildef12',intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22,intf12)
+  call check('intildef122',intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22,intf12)
+  call check('inttildef122',intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22,intf12)
 
   if(fullPRINT) then
      call timer('import + checks use',Tcpu,Twall)
@@ -376,7 +386,7 @@ associate(PairSystem => System%PairSystem(1,1))
   ! if(stage>0) then
   !    call CCint2_matS('A',-1,TMP,PairSystem,PairSystem)
   !    matL1_S(:,:) = TMP
-  !    matL1_T(:,:) = TMP
+  !    matL11_T(:,:) = TMP
   !    call CCint2_matS('B',-1,TMP,PairSystem,PairSystem)
   !    matL1_S(:,:) = matL1_S + TMP
   !    matL1_T(:,:) = matL1_T - TMP
@@ -416,31 +426,60 @@ associate(PairSystem => System%PairSystem(1,1))
   !    call timer('3-el integrals init',Tcpu,Twall)
   !    flush(LOUT)
   ! endif
-  call make_mats(System%OrbSystem(1)%nbas,norb,int6f122,matJ_S,matJ_T,matK_S,matK_T,matM_S,matM_T)
-  write(LOUT,'(a)') "**  Checking                                  **"
-  ! do i = 1, 5
-  !    do j = 1, 5
-  !       print*, i,j,matJ_S(i,j,1,1)-matJ_S(j,i,1,1),matJ_S(i,j,1,1),matJ_S(j,i,1,1)
-  !    end do
-  ! end do
-  ! stop
-  ! 1,3,0,0,2,4
-  print*, "val=",matJ_S(3*(3+1)/2+1+1,4*(4+1)/2+2+1,1,1)&
-       &,"diff=",matJ_S(3*(3+1)/2+1+1,4*(4+1)/2+2+1,1,1)-(&
-       &int6f122(1,2,0,0,3,4)+int6f122(3,4,0,0,1,2)+int6f122(1,4,0,0,3,2)+int6f122(3,2,0,0,1,4))
-  print*, "val=",matJ_T(3*(3+1)/2+1+1,4*(4+1)/2+2+1,1,1)&
-       &,"diff=",matJ_T(3*(3+1)/2+1+1,4*(4+1)/2+2+1,1,1)-(&
-       &int6f122(1,2,0,0,3,4)+int6f122(3,4,0,0,1,2)-int6f122(1,4,0,0,2,3)-int6f122(2,3,0,0,1,4))
-  print*, "val=",matM_S(3*(3+1)/2+1+1,4*(4+1)/2+2+1,1,1)&
-       ,"diff=",matM_S(3*(3+1)/2+1+1,4*(4+1)/2+2+1,1,1)-(&
-       &int6f122(1,2,0,0,3,4)-int6f122(3,4,0,0,1,2)+int6f122(1,4,0,0,2,3)-int6f122(2,3,0,0,1,4))
-  print*, "val=",matM_T(3*(3+1)/2+1+1,4*(4+1)/2+2+1,1,1)&
-       &,"diff=",matM_T(3*(3+1)/2+1+1,4*(4+1)/2+2+1,1,1)-(&
-       &int6f122(1,2,0,0,3,4)-int6f122(3,4,0,0,1,2)-int6f122(1,4,0,0,2,3)+int6f122(2,3,0,0,1,4))
+
+  call make_mats(System%OrbSystem(1)%nbas,norb,System%OrbSystem(1)%tgg,int6f122,int6f12,&
+       matJ_S,matJ_T,matM_S,matM_T)
+
+  matK_S(:,:,:,:) = matJ_S
+  matK_T(:,:,:,:) = matJ_T
+
   do iorb=1,norb
      matF_S(:,:) = matF_S + matJ_S(:,:,iorb,iorb)! because the 2*J-K
      matF_T(:,:) = matF_T + matJ_T(:,:,iorb,iorb)! eliminates one of them
   end do
+
+  !matF testing
+  mH = 0._prec
+  do j = 1, nbas
+     do i = 1, nbas
+        do l = 1, nbas
+           do k = 1, nbas
+              mH(i,j,k,l) = matF_S(max(i,j)*(max(i,j)-1)/2+min(i,j),max(k,l)*(max(k,l)-1)/2+min(k,l))
+           end do
+        end do
+     end do
+  end do
+
+  open(11,file='/home/grining/matF.F',status='unknown',form='unformatted',access='direct',RECL=4+4+16)
+  do j = 1, nbas
+     do i = 1, nbas
+        do l = 1, nbas
+           do k = 1, nbas
+              caunta = caunta + 1
+              write(11,rec=caunta) j*(j-1)/2+i,l*(l-1)/2+k,mH(i,j,k,l)
+           end do
+        end do
+     end do
+  end do
+  close(11)
+  stop
+
+  call init_Triplet(Triplet,System%OrbSystem(1)%nbas)
+  call init_OV_S(OV_S,norb,System%OrbSystem(1)%nbas)
+  call shrink_Triplet(matF_S,OV_S)
+  print*, "lol"
+  caunta = 0
+  open(11,file='/home/grining/matF.F',status='unknown',form='unformatted',access='direct',RECL=4+4+16)
+  do j = norb+1, nbas
+     do i = norb+1, j
+        caunta = caunta + 1
+        write(11,rec=caunta) i,j,matF_S(i,j)
+     end do
+  end do
+  close(11)
+  print*, caunta
+  stop
+  !matF testing
 
   !    do jorb=1,norb
   !       do iorb=1,norb
@@ -521,7 +560,7 @@ associate(PairSystem => System%PairSystem(1,1))
   !       end associate
   !    enddo
 
-  call make_p1(System%OrbSystem(1)%nbas,norb,matP1_S,matP1_T,SCF%orb_energy,matPe_S,matPe_T)
+  call make_p1(System%OrbSystem(1)%nbas,norb,matP1_S,matP1_T,SCF%orb_energy,matPe_S,matPe_T,intf12)
 
   ! endif
   ! matP1_S = 0._prec
@@ -557,7 +596,7 @@ associate(PairSystem => System%PairSystem(1,1))
   !    end associate
   ! enddo
 
-  call make_vecP(System%OrbSystem(1)%nbas,norb,vecP,intinterm12)
+  call make_vecP(System%OrbSystem(1)%nbas,norb,vecP,int6f12)
 
   ! vecP = 0._prec
   ! do jorb=1,norb
@@ -614,7 +653,8 @@ associate(PairSystem => System%PairSystem(1,1))
      flush(LOUT)
   endif
 
-  deallocate(int6f122,intinterm2,intinterm1,intinterm12,intinterm22,intildef12,intildef122)
+  deallocate(intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22,intf12)
+  deallocate(int6f12,int6f122)
   !modtg
 
   call mem_dealloc(TMP)
@@ -643,6 +683,11 @@ associate(PairSystem => System%PairSystem(1,1))
                      +  SCF%pair_energy(jorb,iorb,ijpair))
              enddo
           enddo
+
+          ! do ii=1, 10
+          !    print*, CCpair%vecE(ii),CCpair%vecN(ii)
+          ! end do
+          ! stop
 
         end associate
 
@@ -682,17 +727,24 @@ associate(PairSystem => System%PairSystem(1,1))
      write(LOUT,'(2(a,i5))') &
           'Triplet reduction: ',Triplet%nbas_orig,' -> ',Triplet%nbas
   endif
+  call init_OV_S(OV_S,norb,System%OrbSystem(1)%nbas)
+  call init_OV_T(OV_T,norb,System%OrbSystem(1)%nbas)
 
   call mem_alloc(LHS,nbas,nbas)
   call mem_alloc(RHS,nbas)
 
   LHS(:,:) = matS_S
-  if(fullPRINT) call symmetry_check(0,0,nbas,LHS)
-  call init_linsolver(project_S,'U','LDL1',nbas,LHS)
+  call shrink_Triplet(LHS,OV_S)
+  if(fullPRINT) call symmetry_check(0,0,OV_S%nbas,LHS)
+  call init_linsolver(project_S,'U','LDL1',OV_S%nbas,LHS)
   LHS(:,:) = matS_T
   call shrink_Triplet(LHS,Triplet)
-  if(fullPRINT) call symmetry_check(0,0,Triplet%nbas,LHS)
-  call init_linsolver(project_T,'U','LDL1',Triplet%nbas,LHS)
+  call shrink_Triplet(LHS,OV_T)
+  open(11,file='fajl.dat',status='unknown')
+  write(11,*) LHS
+  close(11)
+  if(fullPRINT) call symmetry_check(0,0,OV_T%nbas,LHS)
+  call init_linsolver(project_T,'U','LDL1',OV_T%nbas,LHS)
 
   if(fullPRINT) flush(LOUT)
 
@@ -725,9 +777,9 @@ associate(PairSystem => System%PairSystem(1,1))
               associate(OS => OS(ipair,jpair))
 
                 if(ipair>=jpair) then
-                   OS%size = nbas
+                   OS%size = OV_S%nbas!!
                 else
-                   OS%size = Triplet%nbas
+                   OS%size = OV_T%nbas!!
                 endif
 
                 OS%start = OS_size + 1
@@ -927,18 +979,20 @@ associate(PairSystem => System%PairSystem(1,1))
               ! matP2_S=0._prec
               call MWO(LHS,jpair,ipair,eta,&
                    matF_S,matS_S,matP1_S,matPe_S,matP2_S)
-              if(fullPRINT) call symmetry_check(jpair,ipair,nbas,LHS)
+              call shrink_Triplet(LHS,OV_S)
+              if(fullPRINT) call symmetry_check(jpair,ipair,OV_S%nbas,LHS)
               call init_linsolver(pairLHS(jpair,ipair),&
-                   'U','LDL2',nbas,LHS)
+                   'U','LDL2',OV_S%nbas,LHS)
 
               if(ipair==jpair) cycle
 
               call MWO(LHS,ipair,jpair,eta,&
                    matF_T,matS_T,matP1_T,matPe_T,matP2_T)
               call shrink_Triplet(LHS,Triplet)
-              if(fullPRINT) call symmetry_check(ipair,jpair,Triplet%nbas,LHS)
+              call shrink_Triplet(LHS,OV_T)
+              if(fullPRINT) call symmetry_check(ipair,jpair,OV_T%nbas,LHS)
               call init_linsolver(pairLHS(ipair,jpair),&
-                   'U','LDL2',Triplet%nbas,LHS)
+                   'U','LDL2',OV_T%nbas,LHS)
 
            enddo
         enddo
@@ -1094,17 +1148,20 @@ associate(PairSystem => System%PairSystem(1,1))
 
                 endif
 
+                call shrink_Triplet(RHS,OV_S)
                 if(stage>1) then
-                   call use_linsolver(pairLHS(jpair,ipair),nbas,RHS,CCpair%tau)
+                   call use_linsolver(pairLHS(jpair,ipair),OV_S%nbas,RHS,CCpair%tau)
                 else
                    call MWO(LHS,jpair,ipair,eta,&
                         matF_S,matS_S,matP1_S,matPe_S,matP2_S)
                    if(stage==1.and.iter>1) &
                         LHS(:,:) = LHS - energy(3,iter-1,ieta)*matS_S
+                   call shrink_Triplet(LHS,OV_S)
                    if(iter==1.and.fullPRINT) &
                         call symmetry_check(jpair,ipair,nbas,LHS)
-                   call simple_linsolver('U','LDL2',nbas,LHS,RHS,CCpair%tau)
+                   call simple_linsolver('U','LDL2',OV_S%nbas,LHS,RHS,CCpair%tau)
                 endif
+                call expand_Triplet(CCpair%tau,OV_S)
 
               end associate
 
@@ -1220,20 +1277,23 @@ associate(PairSystem => System%PairSystem(1,1))
                 endif
 
                 call shrink_Triplet(RHS,Triplet)
+                call shrink_Triplet(RHS,OV_T)
                 if(stage>1) then
                    call use_linsolver(pairLHS(ipair,jpair),&
-                        Triplet%nbas,RHS,CCpair%tau)
+                        OV_T%nbas,RHS,CCpair%tau)
                 else
                    call MWO(LHS,ipair,jpair,eta,&
                         matF_T,matS_T,matP1_T,matPe_T,matP2_T)
                    if(stage==1.and.iter>1) &
                         LHS(:,:) = LHS - energy(3,iter-1,ieta)*matS_T
                    call shrink_Triplet(LHS,Triplet)
+                   call shrink_Triplet(LHS,OV_T)
                    if(iter==1.and.fullPRINT) &
                         call symmetry_check(ipair,jpair,Triplet%nbas,LHS)
                    call simple_linsolver('U','LDL2',&
-                        Triplet%nbas,LHS,RHS,CCpair%tau)
+                        OV_T%nbas,LHS,RHS,CCpair%tau)
                 endif
+                call expand_Triplet(CCpair%tau,OV_T)
                 call expand_Triplet(CCpair%tau,Triplet)
 
               end associate
@@ -1398,15 +1458,15 @@ associate(PairSystem => System%PairSystem(1,1))
   call mem_dealloc(vec1)
   call mem_dealloc(vec0)
 
-  if(stage>0) then
+  if (stage>0) then
      call mem_dealloc(matM_T)
      call mem_dealloc(matM_S)
      call mem_dealloc(matK_T)
      call mem_dealloc(matK_S)
      call mem_dealloc(matJ_T)
      call mem_dealloc(matJ_S)
-     call mem_dealloc(matL1_S); call mem_dealloc(matL1_T)
   endif
+  call mem_dealloc(matL1_S); call mem_dealloc(matL1_T)
   call mem_dealloc(matP2_S); call mem_dealloc(matP2_T)
   call mem_dealloc(matPe_S); call mem_dealloc(matPe_T)
   call mem_dealloc(matP1_S); call mem_dealloc(matP1_T)
@@ -1452,7 +1512,9 @@ contains
 
              LHS(:,:) = matS_S - matP1_S + matP2_S
              call MatVec(nbas,1._prec,LHS,CCpair%tau,RHS)
-             call use_linsolver(project_S,nbas,RHS,CCpair%Qtau)
+             call shrink_Triplet(RHS,OV_S)
+             call use_linsolver(project_S,OV_S%nbas,RHS,CCpair%Qtau)
+             call expand_Triplet(CCpair%Qtau,OV_S)
 
              associate(energy => CCpair%energy(:,iter,ieta))
                energy(1) = &
@@ -1476,7 +1538,9 @@ contains
              LHS(:,:) = matS_T - matP1_T + matP2_T
              call MatVec(nbas,1._prec,LHS,CCpair%tau,RHS)
              call shrink_Triplet(RHS,Triplet)
-             call use_linsolver(project_T,Triplet%nbas,RHS,CCpair%Qtau)
+             call shrink_Triplet(RHS,OV_T)
+             call use_linsolver(project_T,OV_T%nbas,RHS,CCpair%Qtau)
+             call expand_Triplet(CCpair%Qtau,OV_T)
              call expand_Triplet(CCpair%Qtau,Triplet)
 
              associate(energy => CCpair%energy(:,iter,ieta))

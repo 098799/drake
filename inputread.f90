@@ -9,8 +9,8 @@ implicit none
 private
 public read_Input
 
-integer,parameter :: slength = 80
-character(*),parameter :: sfmt = '(a80)'
+integer,parameter :: slength = 180
+character(*),parameter :: sfmt = '(a180)'
 character(*),parameter :: set_comment = '!#'
 character(*),parameter :: set_int     = '+-0123456789'
 character(*),parameter :: set_real    = set_int//'.ED'

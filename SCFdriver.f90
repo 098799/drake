@@ -181,7 +181,7 @@ call Roothaan_iterations(norb,nbas,converged,energy,eval,evec,&
 if(fullPRINT) then
    write(LOUT,'()')
    write(LOUT,'(a)') 'Orbital energies'
-   do i=1,norb
+   do i=1,nbas
       write(LOUT,'(i5,f25.18)') i,eval(i)
    enddo
    write(LOUT,'()')
@@ -198,8 +198,8 @@ if(associated(RESULT_extend)) then
    RESULT_extend%energy = energy
    RESULT_extend%HOMO = eval(norb)
    RESULT_extend%LUMO = merge(eval(norb+1),0._prec,nbas>norb)
-   RESULT_extend%orb_energy(1:norb) = eval(1:norb)
-   RESULT_extend%orb_vector(1:nbas,1:norb) = evec(1:nbas,1:norb)
+   RESULT_extend%orb_energy(1:nbas) = eval(1:nbas)
+   RESULT_extend%orb_vector(1:nbas,1:nbas) = evec(1:nbas,1:nbas)
    ij2 = 0
    do j2=1,norb
       do i2=1,j2
