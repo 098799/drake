@@ -3,7 +3,7 @@ module ggint
   use file_OUT, only : LOUT
   implicit none
   integer, parameter :: newhn=50
-  integer, parameter :: ggn=400,hn=200,ghn=100,tho=1000,RECB=40,RECS=24!,RECB=32,RECS=16!
+  integer, parameter :: ggn=400,hn=200,ghn=100,tho=1000,RECB=36,RECS=20!,RECB=32,RECS=16!
   integer, parameter :: ROIsum=50
   real(prec) :: hermiteh_gh(0:hn,ggn),ghabsciss(ghn),ghweights(ghn)!,ggabsciss(:),ggweights(:),hermiteh_gg(4,0:hn,ggn)
   real(prec) :: dzejmu(4,-5:tho),norm(0:tho),aleph=1._prec
@@ -15,38 +15,76 @@ module ggint
 
 contains
 
-  subroutine make_vecP(m,n,vecp,int6f12)
+  subroutine density_matrix(m,n,orbvec,occdens)
     implicit none
-    integer    :: m,n,i,j,a,b,al,ij
-    real(prec) :: beta,temp
-    real(prec) :: vecp(:,:,:), int6f12(0:,0:,0:,0:,0:,0:)
-    vecP = 0._prec
-    beta = 1.5_prec*aleph+1._prec
-    do i = 0, n-1
-       do j = 0, i
-          do a = 0, n-1
-             do b = 0, a
-                if ((modulo(i+j+a+b,2).EQ.0)) then
-                   temp = 0._prec
-                   ij = j*(j+1)/2+i+1
-                   do al = 0, n-1
-                      temp = temp + int6f12(al,b,a,j,al,i)! inttildef12(al,b,a,j,al,i,beta,intinterm12)
+    integer    :: i,j,m,n,al,ii
+    real(prec) :: orbvec(:,:),occdens(:,:)
+    real(prec) :: val,t1,t0
+    occdens = 0._prec
+    do j = 1, m
+       do i = 1, j
+          val = sum(orbvec(i,1:n)*orbvec(j,1:n))
+          occdens(i,j) = val
+          occdens(j,i) = val
+       end do
+    end do
+  end subroutine density_matrix
+
+  subroutine make_vecP(m,n,vecp,int6f12table,orbvec,occdens)
+    implicit none
+    integer    :: m,n,i,j,B,A,al,ij,k,l,p,r
+    real(prec) :: temp,temp2,val1,val2
+    real(prec) :: vecp(:,:,:),orbvec(:,:),occdens(:,:)
+    real(prec) :: int6f12table(0:,0:,0:,0:,0:,0:)
+    do j = 0, m-1
+       do i = 0, j
+          ij = j*(j+1)+i+1
+          do B = 1, n
+             do A = 1, B
+                temp2 = 0._prec
+                do l = 0, m-1
+                   do k = 0, m-1
+                      temp = 0._prec
+                      do r = 0, m-1, 2
+                         do p = 0, m-1, 2
+                            val1 = occdens(r+1,p+1)*int6(r,k,l,j,p,i,int6f12table)
+                            val2 = occdens(r+1,p+1)*int6(r,k,l,i,p,j,int6f12table)
+                            temp = temp + val1 + val2
+                         end do
+                      end do
+                      do r = 1, m-1, 2
+                         do p = 1, m-1, 2
+                            val1 = occdens(r+1,p+1)*int6(r,k,l,j,p,i,int6f12table)
+                            val2 = occdens(r+1,p+1)*int6(r,k,l,i,p,j,int6f12table)
+                            temp = temp + val1 + val2
+                         end do
+                      end do
+                      temp2 = temp2 + orbvec(k+1,A)*orbvec(l+1,B)*temp
                    end do
-                   vecP(ij,a+1,b+1) = temp
-                   vecP(ij,b+1,a+1) = temp
-                end if
+                end do
+                vecp(ij,A,B) = vecp(ij,A,B) + temp2
+                if (A.NE.B) vecp(ij,B,A) = vecp(ij,B,A) + temp2
              end do
           end do
        end do
     end do
   end subroutine make_vecP
 
+  real(prec) function int6(i,j,k,l,a,b,inttable)
+    implicit none
+    integer    :: i,j,k,l,ii,jj,kk,ll,a,b,aa,bb
+    real(prec) :: inttable(0:,0:,0:,0:,0:,0:)
+    call sort4(i,j,k,l,ii,jj,kk,ll)
+    call sort2(a,b,aa,bb)
+    int6 = inttable(ii,jj,kk,ll,aa,bb)
+  end function int6
+
   subroutine read_f12(intf12)
     implicit none
-    integer    :: ii,m,p,i,j,k,l,fun,number
+    integer    :: ii,i,j,k,l,number
     real(prec) :: temp
     real(prec) :: intf12(0:,0:,0:,0:)
-    open(11,file='bas/file_f12.F',status='unknown',form='unformatted',access='direct',RECL=RECS-4)
+    open(11,file='bas/file_f12.F',status='unknown',form='unformatted',access='direct',RECL=RECS)
     do ii = 1, 1758276
        read(11,rec=ii) number,temp
        i=iand(number,255)
@@ -85,7 +123,7 @@ contains
   subroutine create_ROI(m,n,counter,intf12)
     implicit none
     integer    :: i,j,k,l,counter,m,n,al,p,ij,kl
-    real(prec) :: temp,beta,intf12(0:,0:,0:,0:)
+    real(prec) :: temp,intf12(0:,0:,0:,0:)
     open(11,file='bas/file_ROI.F',status='unknown',form='unformatted',access='direct',RECL=RECB)
     counter = 0
     ! beta = 2*aleph+1._prec
@@ -119,7 +157,7 @@ contains
     integer    :: m,n
     integer    :: i,j,k,l,al,p,ij,kl
     real(prec) :: temp,tempe,beta
-    real(prec) :: tempp,tttemp
+    real(prec) :: tttemp
     real(prec) :: matps(:,:), matpt(:,:), matpes(:,:), matpet(:,:)
     real(prec) :: eorb(n),intf12(0:,0:,0:,0:)
     beta = 2*aleph+1._prec
@@ -191,13 +229,14 @@ contains
     end do
   end subroutine make_p1
 
-  subroutine make_mats(m,n,g,int6f122,int6f12,matjs,matjt,matms,matmt)
+  subroutine make_mats(m,n,int6f122table,matjs,matjt,matms,matmt,orbvec)
     implicit none
     integer :: m,n,counter
-    integer :: i,j,k,l,al,be,ij,kl
-    real(prec) :: val1,val2,val3,val4,g
-    real(prec) :: int6f122(0:m-1,0:m-1,0:n-1,0:n-1,0:m-1,0:m-1)
-    real(prec) :: int6f12(0:m-1,0:m-1,0:n-1,0:n-1,0:m-1,0:m-1)
+    integer :: i,j,k,l,p,r,A,B,ij,kl,ii
+    real(prec) :: temp,temp1,temp2,temp3,temp4
+    real(prec) :: val, val1, val2, val3, val4
+    real(prec) :: int6f122table(0:,0:,0:,0:,0:,0:)
+    real(prec) :: orbvec(:,:)
     real(prec) :: matjs(:,:,:,:), matjt(:,:,:,:)
     real(prec) :: matms(:,:,:,:), matmt(:,:,:,:)
     matjs=0._prec
@@ -205,116 +244,52 @@ contains
     matms=0._prec
     matmt=0._prec
     counter = 0
-    do l = 0, n-1
-       do k = 0, l
-          do be = 0, n-1
-             do al = 0, be
-                do j = 0, n-1
+    do B = 1, n
+       do A = 1, B
+          do l = 0, m-1
+             do k = 0, l
+                kl=l*(l+1)/2+k+1
+                do j = 0, m-1
                    do i = 0, j
-                      if (modulo(i+j+k+l+al+be,2).EQ.0) then
-                         val1=int6f122(i,k,al,be,j,l)
-                         val2=int6f122(j,l,al,be,i,k)
-                         val3=int6f122(i,l,al,be,j,k)
-                         val4=int6f122(j,k,al,be,i,l)
-                         ij=j*(j+1)/2+i+1
-                         kl=l*(l+1)/2+k+1
-                         matjs(ij,kl,al+1,be+1)=val1+val2+val3+val4
-                         matjs(ij,kl,be+1,al+1)=val1+val2+val3+val4
-                         matjt(ij,kl,al+1,be+1)=val1+val2-val3-val4
-                         matjt(ij,kl,be+1,al+1)=val1+val2-val3-val4
-                         matms(ij,kl,al+1,be+1)=val1-val2+val3-val4
-                         matms(ij,kl,be+1,al+1)=val1-val2+val3-val4
-                         matmt(ij,kl,al+1,be+1)=val1-val2-val3+val4
-                         matmt(ij,kl,be+1,al+1)=val1-val2-val3+val4
-                      end if
-                   end do
-                end do
-             end do
-          end do
-       end do
-    end do
-    do l = n, m-1
-       do k = n, l
-          do be = 0, n-1
-             do al = 0, be
-                do j = 0, n-1
-                   do i = 0, j
-                      if (modulo(i+j+k+l+al+be,2).EQ.0) then
-                         val1=int6f12(i,k,al,be,j,l)
-                         val2=int6f12(j,l,al,be,i,k)
-                         val3=int6f12(i,l,al,be,j,k)
-                         val4=int6f12(j,k,al,be,i,l)
-                         ij=j*(j+1)/2+i+1
-                         kl=l*(l+1)/2+k+1
-                         matjs(ij,kl,al+1,be+1)=val1+val2+val3+val4
-                         matjs(ij,kl,be+1,al+1)=val1+val2+val3+val4
-                         matjt(ij,kl,al+1,be+1)=val1+val2-val3-val4
-                         matjt(ij,kl,be+1,al+1)=val1+val2-val3-val4
-                         matms(ij,kl,al+1,be+1)=val1-val2+val3-val4
-                         matms(ij,kl,be+1,al+1)=val1-val2+val3-val4
-                         matmt(ij,kl,al+1,be+1)=val1-val2-val3+val4
-                         matmt(ij,kl,be+1,al+1)=val1-val2-val3+val4
-                      end if
-                   end do
-                end do
-             end do
-          end do
-       end do
-    end do
-    do l = 0, n-1
-       do k = 0, l
-          do be = 0, n-1
-             do al = 0, be
-                do j = n, m-1
-                   do i = n, j
-                      if (modulo(i+j+k+l+al+be,2).EQ.0) then
-                         val1=int6f12(i,k,al,be,j,l)
-                         val2=int6f12(j,l,al,be,i,k)
-                         val3=int6f12(i,l,al,be,j,k)
-                         val4=int6f12(j,k,al,be,i,l)
-                         ij=j*(j+1)/2+i+1
-                         kl=l*(l+1)/2+k+1
-                         matjs(ij,kl,al+1,be+1)=val1+val2+val3+val4
-                         matjs(ij,kl,be+1,al+1)=val1+val2+val3+val4
-                         matjt(ij,kl,al+1,be+1)=val1+val2-val3-val4
-                         matjt(ij,kl,be+1,al+1)=val1+val2-val3-val4
-                         matms(ij,kl,al+1,be+1)=val1-val2+val3-val4
-                         matms(ij,kl,be+1,al+1)=val1-val2+val3-val4
-                         matmt(ij,kl,al+1,be+1)=val1-val2-val3+val4
-                         matmt(ij,kl,be+1,al+1)=val1-val2-val3+val4
-                      end if
-                   end do
-                end do
-             end do
-          end do
-       end do
-    end do
-    do l = n, m-1
-       do k = n, l
-          do be = 0, n-1
-             do al = 0, be
-                do j = n, m-1
-                   do i = n, j
-                      if (modulo(i+j+k+l+al+be,2).EQ.0) then
-                         val1 = 0._prec
-                         val2 = 0._prec
-                         val3 = 0._prec
-                         val4 = 0._prec
-                         if (j.EQ.l) val1=g*intgh(i,al,k,be,2._prec)
-                         if (i.EQ.k) val2=g*intgh(j,al,l,be,2._prec)
-                         ! if (j.EQ.k) val3=g*intgh(i,al,l,be,2._prec)
-                         ! if (i.EQ.l) val4=g*intgh(j,al,k,be,2._prec)
-                         ij=j*(j+1)/2+i+1
-                         kl=l*(l+1)/2+k+1
-                         matjs(ij,kl,al+1,be+1)=val1+val2+val3+val4
-                         matjs(ij,kl,be+1,al+1)=val1+val2+val3+val4
-                         matjt(ij,kl,al+1,be+1)=val1+val2-val3-val4
-                         matjt(ij,kl,be+1,al+1)=val1+val2-val3-val4
-                         matms(ij,kl,al+1,be+1)=val1-val2+val3-val4
-                         matms(ij,kl,be+1,al+1)=val1-val2+val3-val4
-                         matmt(ij,kl,al+1,be+1)=val1-val2-val3+val4
-                         matmt(ij,kl,be+1,al+1)=val1-val2-val3+val4
-                      end if
+                      ij=j*(j+1)/2+i+1
+                      temp1 = 0._prec
+                      temp2 = 0._prec
+                      temp3 = 0._prec
+                      temp4 = 0._prec
+                      do p = 0, m-1
+                         do r = 0, p
+                            if (modulo(i+j+k+l+p+r,2).EQ.0) then
+                               temp=orbvec(r,A)*orbvec(p,B)
+                               val1=int6(r,p,i,k,j,l,int6f122table)
+                               val2=int6(r,p,j,l,i,k,int6f122table)
+                               val3=int6(r,p,i,l,j,k,int6f122table)
+                               val4=int6(r,p,j,k,i,l,int6f122table)
+                               temp1=temp1+temp*val1
+                               temp2=temp2+temp*val2
+                               temp3=temp3+temp*val3
+                               temp4=temp4+temp*val4
+                               if (r.NE.p) then
+                                  temp=orbvec(p,A)*orbvec(r,B)
+                                  temp1=temp1+temp*val1
+                                  temp2=temp2+temp*val2
+                                  temp3=temp3+temp*val3
+                                  temp4=temp4+temp*val4
+                               end if
+                            end if
+                         end do
+                      end do
+                      val=temp1+temp2+temp3+temp4
+                      matjs(ij,kl,A,B)=val
+                      matjs(ij,kl,B,A)=val
+                      val=temp1+temp2-temp3-temp4
+                      matjt(ij,kl,A,B)=val
+                      matjt(ij,kl,B,A)=val
+                      val=temp1-temp2+temp3-temp4
+                      matms(ij,kl,A,B)=val
+                      matms(ij,kl,B,A)=val
+                      val=temp1-temp2-temp3+temp4
+                      matmt(ij,kl,A,B)=val
+                      matmt(ij,kl,B,A)=val
                    end do
                 end do
              end do
@@ -323,55 +298,47 @@ contains
     end do
   end subroutine make_mats
 
-  subroutine read_int6f12_file(m,n,g,int6f12,fun)
+  subroutine read_int6f12_file(g,int6f12table,fun)
     implicit none
-    integer :: m,n,fun
-    integer :: number,numberab,ii,i,j,k,l,al,be
+    integer :: fun
+    integer :: number,numberab,ii,i,j,k,l,a,b
     real(prec) :: lolzix,g
-    real(prec) :: int6f12(0:m-1,0:m-1,0:n-1,0:n-1,0:m-1,0:m-1)
+    real(prec) :: int6f12table(0:,0:,0:,0:,0:,0:)
     open(11,file='bas/file_int6f12.F',status='unknown',form='unformatted',access='direct',RECL=RECB)
-    int6f12 = 0._prec
+    int6f12table = 0._prec
     do ii = 1, fun
        read(11,rec=ii) number,numberab,lolzix
        i=iand(number,255)
        j=iand(ishft(number,-8),255)
        k=iand(ishft(number,-16),255)
        l=ishft(number,-24)
-       al=iand(numberab,255)
-       be=iand(ishft(numberab,-8),255)
+       a=iand(numberab,255)
+       b=iand(ishft(numberab,-8),255)
        lolzix = lolzix*g
-       int6f12(i,j,al,be,k,l) = lolzix
-       int6f12(i,j,be,al,k,l) = lolzix
-       int6f12(j,i,al,be,k,l) = lolzix
-       int6f12(i,j,al,be,l,k) = lolzix
-       int6f12(j,i,be,al,k,l) = lolzix
-       int6f12(j,i,al,be,l,k) = lolzix
-       int6f12(i,j,be,al,l,k) = lolzix
-       int6f12(j,i,be,al,l,k) = lolzix
+       int6f12table(i,j,k,l,a,b) = lolzix
     end do
     close(11)
   end subroutine read_int6f12_file
 
-  subroutine create_int6f12_file(m,n,intinterm12,caunta)
+  subroutine create_int6f12_file(m,intinterm12,caunta)
     implicit none
-    integer :: al,be,i,j,k,l,ij,kl,n
+    integer :: a,b,i,j,k,l
     integer, intent(in) :: m
     integer, intent(out) :: caunta
-    real(prec) :: integral,beta
-    real(prec) :: intinterm12(0:newhn,0:newhn,0:newhn,0:newhn)
-    beta = 1.5_prec*aleph+1._prec
+    real(prec) :: integral
+    real(prec) :: intinterm12(0:,0:,0:,0:)
     open(11,file='bas/file_int6f12.F',status='unknown',form='unformatted',access='direct',RECL=RECB)
     caunta = 0
     do l = 0, m-1
        do k = 0, l
-          do be = 0, n-1
-             do al = 0, be
-                do j = 0, m-1
-                   do i = 0, j
-                      if ((modulo(i+j+al+be+k+l,2).EQ.0)) then
-                         integral=inttildef12(i,j,al,be,k,l,beta,intinterm12)
+          do j = 0, k
+             do i = 0, j
+                do b = 0, m-1
+                   do a = 0, b
+                      if ((modulo(i+j+k+l+a+b,2).EQ.0)) then
+                         integral=inttildef12(i,j,k,l,a,b,intinterm12)
                          caunta = caunta + 1
-                         write(11,rec=caunta) i+ishft(j,8)+ishft(k,16)+ishft(l,24),al+ishft(be,8),integral
+                         write(11,rec=caunta) i+ishft(j,8)+ishft(k,16)+ishft(l,24),a+ishft(b,8),integral
                       end if
                    end do
                 end do
@@ -382,55 +349,48 @@ contains
     close(11)
   end subroutine create_int6f12_file
 
-  subroutine read_int6f122_file(m,n,g,int6f122,fun)
+  subroutine read_int6f122_file(g,int6f122table,fun)
     implicit none
-    integer :: m,n,fun
-    integer :: number,numberab,ii,i,j,k,l,al,be
+    integer :: fun
+    integer :: number,numberab,ii,i,j,k,l,a,b
     real(prec) :: lolzix,g
-    real(prec) :: int6f122(0:m-1,0:m-1,0:n-1,0:n-1,0:m-1,0:m-1)
+    real(prec) :: int6f122table(0:,0:,0:,0:,0:,0:)
     open(11,file='bas/file_int6f122.F',status='unknown',form='unformatted',access='direct',RECL=RECB)
-    int6f122=0._prec
+    int6f122table=0._prec
     do ii = 1, fun
        read(11,rec=ii) number,numberab,lolzix
        i=iand(number,255)
        j=iand(ishft(number,-8),255)
        k=iand(ishft(number,-16),255)
        l=ishft(number,-24)
-       al=iand(numberab,255)
-       be=iand(ishft(numberab,-8),255)
+       a=iand(numberab,255)
+       b=iand(ishft(numberab,-8),255)
        lolzix = lolzix*g
-       int6f122(i,j,al,be,k,l) = lolzix
-       int6f122(i,j,be,al,k,l) = lolzix
-       int6f122(j,i,al,be,k,l) = lolzix
-       int6f122(i,j,al,be,l,k) = lolzix
-       int6f122(j,i,be,al,k,l) = lolzix
-       int6f122(j,i,al,be,l,k) = lolzix
-       int6f122(i,j,be,al,l,k) = lolzix
-       int6f122(j,i,be,al,l,k) = lolzix
+       int6f122table(i,j,k,l,a,b) = lolzix
     end do
     close(11)
   end subroutine read_int6f122_file
 
-  subroutine create_int6f122_file(m,n,intinterm22,caunta)
+  subroutine create_int6f122_file(m,intinterm22,caunta)
     implicit none
-    integer :: al,be,i,j,k,l,ij,kl,n
+    integer :: a,b,i,j,k,l
     integer, intent(in) :: m
     integer, intent(out) :: caunta
     real(prec) :: integral,beta
-    real(prec) :: intinterm22(0:newhn,0:newhn,0:newhn,0:newhn)
+    real(prec) :: intinterm22(0:,0:,0:,0:)
     beta = 3._prec*aleph+1._prec
     open(11,file='bas/file_int6f122.F',status='unknown',form='unformatted',access='direct',RECL=RECB)
     caunta = 0
     do l = 0, m-1
        do k = 0, l
-          do be = 0, n-1
-             do al = 0, be
-                do j = 0, m-1
-                   do i = 0, j
-                      if ((modulo(i+j+al+be+k+l,2).EQ.0)) then
-                         integral=inttildef122(i,j,al,be,k,l,beta,intinterm22)
+          do j = 0, k
+             do i = 0, j
+                do b = 0, m-1
+                   do a = 0, b
+                      if ((modulo(i+j+a+b+k+l,2).EQ.0)) then
+                         integral=inttildef122(i,j,k,l,a,b,intinterm22)
                          caunta = caunta + 1
-                         write(11,rec=caunta) i+ishft(j,8)+ishft(k,16)+ishft(l,24),al+ishft(be,8),integral
+                         write(11,rec=caunta) i+ishft(j,8)+ishft(k,16)+ishft(l,24),a+ishft(b,8),integral
                       end if
                    end do
                 end do
@@ -441,195 +401,61 @@ contains
     close(11)
   end subroutine create_int6f122_file
 
-  subroutine read_int2_vec_file(vec0,vec1,m,n,g,caounta,caounta2)
+  subroutine read_vec0_file(vec0,counter)
     implicit none
-    integer :: m,n,fun
-    integer :: number,ii,i,j,k,l,jj,caounta,caounta2
-    real(prec) :: lolzix,g
-    real(prec) :: vec0(:,:,:),vec1(:,:,:)
+    integer :: number,ii,i,j,A,B,jj,counter
+    real(prec) :: lolzix
+    real(prec) :: vec0(:,:,:)
     open(11,file='bas/file_int2_vec.F',status='unknown',form='unformatted',access='direct',RECL=RECS)
     vec0 = 0._prec
-    vec1 = 0._prec
-    do ii = 1, caounta
+    do ii = 1, counter
        read(11,rec=ii) number,lolzix
        i=iand(number,255)
        j=iand(ishft(number,-8),255)
-       k=iand(ishft(number,-16),255)
-       l=ishft(number,-24)
-       jj=l*(l+1)/2+k+1
-       vec0(jj,i+1,j+1) = lolzix
-       vec0(jj,j+1,i+1) = lolzix
-    end do
-    do ii = 1, caounta2
-       read(11,rec=ii) number,lolzix
-       i=iand(number,255)
-       j=iand(ishft(number,-8),255)
-       k=iand(ishft(number,-16),255)
-       l=ishft(number,-24)
-       jj=l*(l+1)/2+k+1
-       lolzix = lolzix*g
-       vec1(jj,i+1,j+1) = lolzix
-       vec1(jj,j+1,i+1) = lolzix
+       A=iand(ishft(number,-16),255)
+       B=ishft(number,-24)
+       jj=j*(j+1)/2+i+1
+       vec0(jj,A,B) = lolzix
+       vec0(jj,B,A) = lolzix
     end do
     close(11)
-  end subroutine read_int2_vec_file
+  end subroutine read_vec0_file
 
-  subroutine create_int2_vec_file(m,n,caounta,caounta2,intf12)
+  subroutine create_vec0_file(m,n,counter,intf12,orbvec)
     implicit none
-    integer :: i,j,k,l,ij,kl,counter,caounta,caounta2
+    integer :: i,j,k,l,A,B,counter,ii
     integer, intent(in) :: m,n
-    real(prec) :: integral,beta,intf12(0:,0:,0:,0:)
+    real(prec) :: integral,beta,val
+    real(prec) :: intf12(0:,0:,0:,0:),orbvec(:,:)
     beta = 2._prec*aleph+1._prec
     open(11,file='bas/file_int2_vec.F',status='unknown',form='unformatted',access='direct',RECL=RECS)
     counter = 0
-    do l = 0, n-1
-       do k = 0, l
-          do j = 0, n-1
+    do B = 1, n
+       do A = 1, B
+          do j = 0, m-1
              do i = 0, j
-                if ((modulo(i+j+k+l,2).EQ.0)) then
-                   integral=intf12(i,j,k,l)
-                   counter = counter + 1
-                   write(11,rec=counter) i+ishft(j,8)+ishft(k,16)+ishft(l,24),integral
-                end if
+                integral = 0._prec
+                do l = 0, m-1
+                   do k = 0, l
+                      if (modulo(i+j+k+l,2).EQ.0) then
+                         val = intf12(k,i,l,j)
+                         integral = integral + orbvec(k+1,A)*orbvec(l+1,B)*val
+                         if (l.NE.k) integral = integral + orbvec(l+1,A)*orbvec(k+1,B)*val
+                      end if
+                   end do
+                end do
+                counter = counter + 1
+                write(11,rec=counter) i+ishft(j,8)+ishft(A,16)+ishft(B,24),integral
              end do
           end do
        end do
     end do
-    ! do l = n, m-1
-    !    do k = n, l
-    !       do j = 0, n-1
-    !          do i = 0, j
-    !             if ((i.EQ.k).AND.(j.EQ.l)) then
-    !                integral = 1._prec
-    !                counter = counter + 1
-    !                write(11,rec=counter) i+ishft(j,8)+ishft(k,16)+ishft(l,24),integral
-    !             end if
-    !          end do
-    !       end do
-    !    end do
-    ! end do
-    caounta = counter
-    counter = 0
-    do l = n, m-1
-       do k = n, l
-          do j = 0, n-1
-             do i = 0, j
-                if ((modulo(i+j+k+l,2).EQ.0)) then
-                   integral = intgh(i,j,k,l,2._prec)
-                   counter = counter + 1
-                   write(11,rec=counter) i+ishft(j,8)+ishft(k,16)+ishft(l,24),integral
-                end if
-             end do
-          end do
-       end do
-    end do
-    caounta2 = counter
     close(11)
-  end subroutine create_int2_vec_file
+  end subroutine create_vec0_file
 
-  ! subroutine read_matH_file(m,maths,matht,counta,countb)
-  !   implicit none
-  !   integer :: m,fun,counta,countb
-  !   integer :: number,ii,i,j,k,l,jj,kk
-  !   real(prec) :: lolzix,lolzix2
-  !   real(prec) :: maths(:,:),matht(:,:)
-  !   open(11,file='bas/fileH.F',status='unknown',form='unformatted',access='direct',RECL=RECB)
-  !   ! mm=real(m,prec)
-  !   ! if (modulo(m,2).EQ.1) then
-  !   !    fun=int((1._prec/8._prec)*((mm)**4._prec+2._prec*(mm)**3._prec+2._prec*(mm)**2._prec+2._prec*(m)+1))
-  !   ! else
-  !   !    fun=int((1._prec/8._prec)*((mm)**4._prec+2._prec*(mm)**3._prec+2._prec*(mm)**2._prec))
-  !   ! end if
-  !   maths=0._prec
-  !   matht=0._prec
-  !   do ii = 1, counta!fun
-  !      read(11,rec=ii) number,lolzix,lolzix2
-  !      ! if (ABtype.eq."A") then
-  !      i=iand(number,255)
-  !      j=iand(ishft(number,-8),255)
-  !      k=iand(ishft(number,-16),255)
-  !      l=ishft(number,-24)
-  !      ! else if (ABtype.eq."B") then
-  !      !    i=iand(number,255)
-  !      !    j=iand(ishft(number,-8),255)
-  !      !    l=iand(ishft(number,-16),255)
-  !      !    k=ishft(number,-24)
-  !      ! else
-  !      !    print*, "Something's gone shitty with the ABtype"
-  !      !    call kurwout
-  !      ! end if
-  !      jj=j*(j+1)/2+i+1
-  !      kk=l*(l+1)/2+k+1
-  !      maths(jj,kk) = maths(jj,kk) + lolzix
-  !      matht(jj,kk) = matht(jj,kk) + lolzix2
-  !   end do
-  !   ! do ii = 1, countb
-  !   !    read(11,rec=ii) number,lolzix
-  !   !    i=iand(number,255)
-  !   !    j=iand(ishft(number,-8),255)
-  !   !    k=iand(ishft(number,-16),255)
-  !   !    l=ishft(number,-24)
-  !   !    jj=j*(j+1)/2+i+1
-  !   !    kk=l*(l+1)/2+k+1
-  !   !    maths(jj,kk) = maths(jj,kk) + lolzix
-  !   !    matht(jj,kk) = matht(jj,kk) - lolzix
-  !   ! end do
-  !   close(11)
-  ! end subroutine read_matH_file
-
-  ! subroutine create_matH_file(m,counta,countb)
-  !   implicit none
-  !   integer :: i,j,k,l,counter,counta,countb
-  !   integer, intent(in) :: m
-  !   real(prec) :: integral,integral2,beta,maths,matht
-  !   beta = 5._prec !check this shit in the future. Is it really 5?
-  !   open(11,file='bas/fileH.F',status='unknown',form='unformatted',access='direct',RECL=RECB)
-  !   counter = 0
-  !   do l = 0, m-1
-  !      do k = 0, l
-  !         do j = 0, m-1
-  !            do i = 0, j
-  !               if ((modulo(i+j+k+l,2).EQ.0)) then
-  !                  integral=0.5_prec*(intdf122(i,j,k,l,beta)+(i+j+k+l+2)*intf122(i,j,k,l,beta))
-  !                  integral2=0.5_prec*(intdf122(i,j,l,k,beta)+(i+j+l+k+2)*intf122(i,j,l,k,beta))
-  !                  maths=integral+integral2
-  !                  matht=integral-integral2
-  !                  if (abs(maths).LT.100000*epsilon(0._prec)) then
-  !                     maths = 0._prec
-  !                  endif
-  !                  if (abs(matht).LT.100000*epsilon(0._prec)) then
-  !                     matht = 0._prec
-  !                  endif
-  !                  !check derivation to be sure
-  !                  counter = counter + 1
-  !                  write(11,rec=counter) i+ishft(j,8)+ishft(k,16)+ishft(l,24),maths,matht
-  !               end if
-  !            end do
-  !         end do
-  !      end do
-  !   end do
-  !   counta=counter
-  !   ! counter = 0
-  !   ! do l = 0, m-1
-  !   !    do k = 0, l
-  !   !       do j = 0, m-1
-  !   !          do i = 0, j
-  !   !             if ((modulo(i+j+k+l,2).EQ.0)) then
-  !   !                integral=0.5_prec*(intdf122(i,j,l,k,beta)+(i+j+k+l+2)*intf122(i,j,l,k,beta))
-  !   !                counter = counter + 1
-  !   !                write(11,rec=counter) i+ishft(j,8)+ishft(k,16)+ishft(l,24),integral
-  !   !             end if
-  !   !          end do
-  !   !       end do
-  !   !    end do
-  !   ! end do
-  !   ! countb=counter
-  !   close(11)
-  ! end subroutine create_matH_file
-
-  subroutine read_matH_file(m,maths,matht,counta)
+  subroutine read_matH_file(maths,matht,counta)
     implicit none
-    integer :: m,fun,counta
+    integer :: counta
     integer :: number,ii,i,j,k,l,jj,kk
     real(prec) :: lolzix,lolzix2
     real(prec) :: maths(:,:),matht(:,:)
@@ -650,18 +476,18 @@ contains
     close(11)
   end subroutine read_matH_file
 
-  subroutine create_matH_file(m,n,counta,intf12)
+  subroutine create_matH_file(m,counta)
     implicit none
     integer :: i,j,k,l,counta
-    integer, intent(in) :: m,n
-    real(prec) :: integral,integral2,beta1,beta2,maths,matht,intf12(0:,0:,0:,0:)
+    integer, intent(in) :: m
+    real(prec) :: integral,integral2,beta1,beta2,maths,matht
     open(11,file='bas/fileH.F',status='unknown',form='unformatted',access='direct',RECL=RECB)
     counta = 0
     beta1 = 4._prec*aleph+1._prec
     beta2 = 3._prec*aleph+1._prec
-    do l = 0, n-1
+    do l = 0, m-1
        do k = 0, l
-          do j = 0, n-1
+          do j = 0, m-1
              do i = 0, j
                 if ((modulo(i+j+k+l,2).EQ.0)) then
                    integral=0.5_prec*(intdf122(i,j,k,l,beta1)+(i+j+k+l+2)*intf122(i,j,k,l,beta2))
@@ -685,78 +511,78 @@ contains
     !    do k = n, l
     !       do j = n, m-1
     !          do i = n, j
-    do l = 0, m-1
-       do k = 0, l
-          do j = 0, m-1
-             do i = 0, j
-                integral = 0._prec
-                integral2 = 0._prec
-                if ((i.EQ.k).AND.(j.EQ.l)) then
-                   integral = real(k+l+1,prec)
-                end if
-                ! if ((i.EQ.l).AND.(j.EQ.k)) then
-                !    integral2 = real(k+l+1,prec)
-                ! end if
-                maths=integral+integral2
-                matht=integral-integral2
-                if ((maths.NE.0._prec).OR.(matht.NE.0._prec)) then
-                   counta = counta + 1
-                   write(11,rec=counta) i+ishft(j,8)+ishft(k,16)+ishft(l,24),maths,matht
-                end if
-             end do
-          end do
-       end do
-    end do
-    do l = 0, n-1
-       do k = 0, l
-          do j = n, m-1
-             do i = n, j
-                if ((modulo(i+j+k+l,2).EQ.0)) then
-                   integral=(i+j+1)*intf12(i,j,k,l)
-                   integral2=(i+j+1)*intf12(i,j,l,k)
-                   maths=integral+integral2
-                   matht=integral-integral2
-                   if (abs(maths).LT.100000*epsilon(0._prec)) then
-                      maths = 0._prec
-                   endif
-                   if (abs(matht).LT.100000*epsilon(0._prec)) then
-                      matht = 0._prec
-                   endif
-                   counta = counta + 1
-                   write(11,rec=counta) i+ishft(j,8)+ishft(k,16)+ishft(l,24),maths,matht
-                end if
-             end do
-          end do
-       end do
-    end do
-    do l = n, m-1
-       do k = n, l
-          do j = 0, n-1
-             do i = 0, j
-                if ((modulo(i+j+k+l,2).EQ.0)) then
-                   integral=(k+l+1)*intf12(i,j,k,l)
-                   integral2=(k+l+1)*intf12(i,j,l,k)
-                   maths=integral+integral2
-                   matht=integral-integral2
-                   if (abs(maths).LT.100000*epsilon(0._prec)) then
-                      maths = 0._prec
-                   endif
-                   if (abs(matht).LT.100000*epsilon(0._prec)) then
-                      matht = 0._prec
-                   endif
-                   counta = counta + 1
-                   write(11,rec=counta) i+ishft(j,8)+ishft(k,16)+ishft(l,24),maths,matht
-                end if
-             end do
-          end do
-       end do
-    end do
+    ! do l = 0, m-1
+    !    do k = 0, l
+    !       do j = 0, m-1
+    !          do i = 0, j
+    !             integral = 0._prec
+    !             integral2 = 0._prec
+    !             if ((i.EQ.k).AND.(j.EQ.l)) then
+    !                integral = real(k+l+1,prec)
+    !             end if
+    !             ! if ((i.EQ.l).AND.(j.EQ.k)) then
+    !             !    integral2 = real(k+l+1,prec)
+    !             ! end if
+    !             maths=integral+integral2
+    !             matht=integral-integral2
+    !             if ((maths.NE.0._prec).OR.(matht.NE.0._prec)) then
+    !                counta = counta + 1
+    !                write(11,rec=counta) i+ishft(j,8)+ishft(k,16)+ishft(l,24),maths,matht
+    !             end if
+    !          end do
+    !       end do
+    !    end do
+    ! end do
+    ! do l = 0, n-1
+    !    do k = 0, l
+    !       do j = n, m-1
+    !          do i = n, j
+    !             if ((modulo(i+j+k+l,2).EQ.0)) then
+    !                integral=(i+j+1)*intf12(i,j,k,l)
+    !                integral2=(i+j+1)*intf12(i,j,l,k)
+    !                maths=integral+integral2
+    !                matht=integral-integral2
+    !                if (abs(maths).LT.100000*epsilon(0._prec)) then
+    !                   maths = 0._prec
+    !                endif
+    !                if (abs(matht).LT.100000*epsilon(0._prec)) then
+    !                   matht = 0._prec
+    !                endif
+    !                counta = counta + 1
+    !                write(11,rec=counta) i+ishft(j,8)+ishft(k,16)+ishft(l,24),maths,matht
+    !             end if
+    !          end do
+    !       end do
+    !    end do
+    ! end do
+    ! do l = n, m-1
+    !    do k = n, l
+    !       do j = 0, n-1
+    !          do i = 0, j
+    !             if ((modulo(i+j+k+l,2).EQ.0)) then
+    !                integral=(k+l+1)*intf12(i,j,k,l)
+    !                integral2=(k+l+1)*intf12(i,j,l,k)
+    !                maths=integral+integral2
+    !                matht=integral-integral2
+    !                if (abs(maths).LT.100000*epsilon(0._prec)) then
+    !                   maths = 0._prec
+    !                endif
+    !                if (abs(matht).LT.100000*epsilon(0._prec)) then
+    !                   matht = 0._prec
+    !                endif
+    !                counta = counta + 1
+    !                write(11,rec=counta) i+ishft(j,8)+ishft(k,16)+ishft(l,24),maths,matht
+    !             end if
+    !          end do
+    !       end do
+    !    end do
+    ! end do
     close(11)
   end subroutine create_matH_file
 
-  subroutine read_matS_file(m,matss,matst,counta)
+  subroutine read_matS_file(matss,matst,counta)
     implicit none
-    integer :: m,fun,counta
+    integer :: counta
     integer :: number,ii,i,j,k,l,jj,kk
     real(prec) :: lolzix,lolzix2
     real(prec) :: matss(:,:),matst(:,:)
@@ -777,17 +603,17 @@ contains
     close(11)
   end subroutine read_matS_file
 
-  subroutine create_matS_file(m,n,counta,intf12)
+  subroutine create_matS_file(m,counta)
     implicit none
     integer :: i,j,k,l,counta
-    integer, intent(in) :: m,n
-    real(prec) :: integral,integral2,beta,matss,matst,intf12(0:,0:,0:,0:)
+    integer, intent(in) :: m
+    real(prec) :: integral,integral2,beta,matss,matst
     open(11,file='bas/fileS.F',status='unknown',form='unformatted',access='direct',RECL=RECB)
     counta = 0
     beta = 3._prec*aleph+1._prec
-    do l = 0, n-1
+    do l = 0, m-1
        do k = 0, l
-          do j = 0, n-1
+          do j = 0, m-1
              do i = 0, j
                 if ((modulo(i+j+k+l,2).EQ.0)) then
                    integral=intf122(i,j,k,l,beta)
@@ -807,119 +633,119 @@ contains
           end do
        end do
     end do
-    do l = n, m-1
-       do k = n, l
-          do j = n, m-1
-             do i = n, j
-                integral = 0._prec
-                integral2 = 0._prec
-                if ((i.EQ.k).AND.(j.EQ.l)) then
-                   integral = 1._prec
-                end if
-                ! if ((i.EQ.l).AND.(j.EQ.k)) then
-                !    integral2 = 1._prec
-                ! end if
-                matss=integral+integral2
-                matst=integral-integral2
-                if ((matss.NE.0._prec).OR.(matst.NE.0._prec)) then
-                   counta = counta + 1
-                   write(11,rec=counta) i+ishft(j,8)+ishft(k,16)+ishft(l,24),matss,matst
-                end if
-             end do
-          end do
-       end do
-    end do
-    beta = 2._prec*aleph+1._prec
-    do l = 0, n-1
-       do k = 0, l
-          do j = n, m-1
-             do i = n, j
-                if ((modulo(i+j+k+l,2).EQ.0)) then
-                   integral=intf12(i,j,k,l)
-                   integral2=intf12(i,j,l,k)
-                   matss=integral+integral2
-                   matst=integral-integral2
-                   if (abs(matss).LT.100000*epsilon(0._prec)) then
-                      matss = 0._prec
-                   endif
-                   if (abs(matst).LT.100000*epsilon(0._prec)) then
-                      matst = 0._prec
-                   endif
-                   counta = counta + 1
-                   write(11,rec=counta) i+ishft(j,8)+ishft(k,16)+ishft(l,24),matss,matst
-                end if
-             end do
-          end do
-       end do
-    end do
-    do l = n, m-1
-       do k = n, l
-          do j = 0, n-1
-             do i = 0, j
-                if ((modulo(i+j+k+l,2).EQ.0)) then
-                   integral=intf12(i,j,k,l)
-                   integral2=intf12(j,i,k,l)
-                   matss=integral+integral2
-                   matst=integral-integral2
-                   if (abs(matss).LT.100000*epsilon(0._prec)) then
-                      matss = 0._prec
-                   endif
-                   if (abs(matst).LT.100000*epsilon(0._prec)) then
-                      matst = 0._prec
-                   endif
-                   counta = counta + 1
-                   write(11,rec=counta) i+ishft(j,8)+ishft(k,16)+ishft(l,24),matss,matst
-                end if
-             end do
-          end do
-       end do
-    end do
+    ! do l = n, m-1
+    !    do k = n, l
+    !       do j = n, m-1
+    !          do i = n, j
+    !             integral = 0._prec
+    !             integral2 = 0._prec
+    !             if ((i.EQ.k).AND.(j.EQ.l)) then
+    !                integral = 1._prec
+    !             end if
+    !             ! if ((i.EQ.l).AND.(j.EQ.k)) then
+    !             !    integral2 = 1._prec
+    !             ! end if
+    !             matss=integral+integral2
+    !             matst=integral-integral2
+    !             if ((matss.NE.0._prec).OR.(matst.NE.0._prec)) then
+    !                counta = counta + 1
+    !                write(11,rec=counta) i+ishft(j,8)+ishft(k,16)+ishft(l,24),matss,matst
+    !             end if
+    !          end do
+    !       end do
+    !    end do
+    ! end do
+    ! beta = 2._prec*aleph+1._prec
+    ! do l = 0, n-1
+    !    do k = 0, l
+    !       do j = n, m-1
+    !          do i = n, j
+    !             if ((modulo(i+j+k+l,2).EQ.0)) then
+    !                integral=intf12(i,j,k,l)
+    !                integral2=intf12(i,j,l,k)
+    !                matss=integral+integral2
+    !                matst=integral-integral2
+    !                if (abs(matss).LT.100000*epsilon(0._prec)) then
+    !                   matss = 0._prec
+    !                endif
+    !                if (abs(matst).LT.100000*epsilon(0._prec)) then
+    !                   matst = 0._prec
+    !                endif
+    !                counta = counta + 1
+    !                write(11,rec=counta) i+ishft(j,8)+ishft(k,16)+ishft(l,24),matss,matst
+    !             end if
+    !          end do
+    !       end do
+    !    end do
+    ! end do
+    ! do l = n, m-1
+    !    do k = n, l
+    !       do j = 0, n-1
+    !          do i = 0, j
+    !             if ((modulo(i+j+k+l,2).EQ.0)) then
+    !                integral=intf12(i,j,k,l)
+    !                integral2=intf12(j,i,k,l)
+    !                matss=integral+integral2
+    !                matst=integral-integral2
+    !                if (abs(matss).LT.100000*epsilon(0._prec)) then
+    !                   matss = 0._prec
+    !                endif
+    !                if (abs(matst).LT.100000*epsilon(0._prec)) then
+    !                   matst = 0._prec
+    !                endif
+    !                counta = counta + 1
+    !                write(11,rec=counta) i+ishft(j,8)+ishft(k,16)+ishft(l,24),matss,matst
+    !             end if
+    !          end do
+    !       end do
+    !    end do
+    ! end do
     close(11)
   end subroutine create_matS_file
 
-  subroutine read_matL1_file(m,matl1s,matl1t,counta)
-    implicit none
-    integer :: m,fun,counta
-    integer :: number,ii,i,j,k,l,jj,kk
-    real(prec) :: lolzix
-    real(prec) :: matl1s(:,:),matl1t(:,:)
-    open(11,file='bas/fileL1.F',status='unknown',form='unformatted',access='direct',RECL=RECS)
-    matl1s=0._prec
-    matl1t=0._prec
-    do ii = 1, counta
-       read(11,rec=ii) number,lolzix
-       i=iand(number,255)
-       j=iand(ishft(number,-8),255)
-       k=iand(ishft(number,-16),255)
-       l=ishft(number,-24)
-       jj=j*(j+1)/2+i+1
-       kk=l*(l+1)/2+k+1
-       matl1s(jj,kk) = matl1s(jj,kk) + lolzix
-    end do
-    close(11)
-  end subroutine read_matL1_file
+  ! subroutine read_matL1_file(m,matl1s,matl1t,counta)
+  !   implicit none
+  !   integer :: m,fun,counta
+  !   integer :: number,ii,i,j,k,l,jj,kk
+  !   real(prec) :: lolzix
+  !   real(prec) :: matl1s(:,:),matl1t(:,:)
+  !   open(11,file='bas/fileL1.F',status='unknown',form='unformatted',access='direct',RECL=RECS)
+  !   matl1s=0._prec
+  !   matl1t=0._prec
+  !   do ii = 1, counta
+  !      read(11,rec=ii) number,lolzix
+  !      i=iand(number,255)
+  !      j=iand(ishft(number,-8),255)
+  !      k=iand(ishft(number,-16),255)
+  !      l=ishft(number,-24)
+  !      jj=j*(j+1)/2+i+1
+  !      kk=l*(l+1)/2+k+1
+  !      matl1s(jj,kk) = matl1s(jj,kk) + lolzix
+  !   end do
+  !   close(11)
+  ! end subroutine read_matL1_file
 
-  subroutine create_matL1_file(m,n,g,counta)
-    implicit none
-    integer :: i,j,k,l,counta
-    integer, intent(in) :: m,n
-    real(prec), intent(in) :: g
-    real(prec) :: matl1s
-    open(11,file='bas/fileL1.F',status='unknown',form='unformatted',access='direct',RECL=RECS)
-    counta = 0
-    do l = n, m-1
-       do k = n, l
-          do j = n, m-1
-             do i = n, j
-                matl1s = 2._prec*g*intgh(i,j,k,l,2._prec)
-                counta = counta + 1
-                write(11,rec=counta) i+ishft(j,8)+ishft(k,16)+ishft(l,24),matl1s
-             end do
-          end do
-       end do
-    end do
-    close(11)
-  end subroutine create_matL1_file
+  ! subroutine create_matL1_file(m,n,g,counta)
+  !   implicit none
+  !   integer :: i,j,k,l,counta
+  !   integer, intent(in) :: m,n
+  !   real(prec), intent(in) :: g
+  !   real(prec) :: matl1s
+  !   open(11,file='bas/fileL1.F',status='unknown',form='unformatted',access='direct',RECL=RECS)
+  !   counta = 0
+  !   do l = n, m-1
+  !      do k = n, l
+  !         do j = n, m-1
+  !            do i = n, j
+  !               matl1s = 2._prec*g*intgh(i,j,k,l,2._prec)
+  !               counta = counta + 1
+  !               write(11,rec=counta) i+ishft(j,8)+ishft(k,16)+ishft(l,24),matl1s
+  !            end do
+  !         end do
+  !      end do
+  !   end do
+  !   close(11)
+  ! end subroutine create_matL1_file
 
   subroutine read_SCF_file(m,twe,gie)
     implicit none
@@ -992,7 +818,7 @@ contains
 
   subroutine create_SCF_file(m)
     implicit none
-    integer :: i,j,k,l,counter,nm
+    integer :: i,j,k,l,counter
     integer, intent(in) :: m
     open(10,file='bas/file2.F',status='unknown',form='unformatted',access='direct',RECL=RECS)
     counter = 0
@@ -1086,10 +912,11 @@ contains
     end do
   end subroutine gener_hermiteh_gh
 
-  function sortt(vec) result(vecet)
+  function sortt(vec)
     implicit none
     integer               :: n,j,temp,bubble
-    integer, dimension(4) :: vec,vecet
+    integer, dimension(:) :: vec
+    integer, dimension(4) :: sortt
     n = 4
     do while (n.GT.1)
        bubble = 0
@@ -1103,8 +930,48 @@ contains
        end do
        n = bubble
     end do
-    vecet = vec
+    sortt = vec
   end function sortt
+
+  subroutine sort2(a,b,aa,bb)
+    implicit none
+    integer :: a,b,aa,bb
+    if (a.GT.b) then
+       aa = b
+       bb = a
+    else
+       aa = a
+       bb = b
+    end if
+  end subroutine sort2
+
+  subroutine sort4(a,b,c,d,aa,bb,cc,dd)
+    implicit none
+    integer, intent(inout) :: a,b,c,d,aa,bb,cc,dd
+    integer                :: n,j,temp,bubble
+    integer                :: vec(4)
+    n = 4
+    vec(1) = a
+    vec(2) = b
+    vec(3) = c
+    vec(4) = d
+    do while (n.GT.1)
+       bubble = 0
+       do j = 1, (n-1)
+          if (vec(j)>vec(j+1)) then
+             temp = vec(j)
+             vec(j) = vec(j+1)
+             vec(j+1) = temp
+             bubble = j
+          end if
+       end do
+       n = bubble
+    end do
+    aa = vec(1)
+    bb = vec(2)
+    cc = vec(3)
+    dd = vec(4)
+  end subroutine sort4
 
   subroutine make_norm()
     implicit none
@@ -1176,7 +1043,7 @@ contains
 
   subroutine import_binomials
     implicit none
-    integer            :: i,j,counter
+    integer :: i,j
     open(10,file='dat/binomials.dat')
     binomials=0._prec
     do i = 0, tho
@@ -1190,15 +1057,15 @@ contains
   real(prec) function intgh(mm,oo,pp,rr,beta)
     implicit none
     integer    :: m,o,p,r,i
-    integer    :: mm,oo,pp,rr,vec(4)
+    integer    :: mm,oo,pp,rr,vec(4),vect(4)
     real(prec) :: beta
     intgh = 0._prec
     if (modulo(modulo(mm,2)+modulo(oo,2)+modulo(pp,2)+modulo(rr,2),2).EQ.0) then
-       vec(1) = mm
-       vec(2) = oo
-       vec(3) = pp
-       vec(4) = rr
-       vec = sortt(vec)
+       vect(1) = mm
+       vect(2) = oo
+       vect(3) = pp
+       vect(4) = rr
+       vec = sortt(vect)
        m = vec(1)
        o = vec(2)
        p = vec(3)
@@ -1539,7 +1406,7 @@ contains
   subroutine create_interm12_file(intinterm1)
     implicit none
     integer    :: counter,nm,m,w,i,j,s,t,summing
-    real(prec) :: temp,val
+    real(prec) :: temp
     real(prec) :: intinterm1(0:newhn,0:newhn,0:newhn)
     m=newhn/2
     open(10,file='bas/file_t1i2.F',status='unknown',form='unformatted',access='direct',RECL=RECS)
@@ -1556,10 +1423,7 @@ contains
                    summing = j
                 endif
                 do w = 0, summing
-                   ! val = intinterm1(i+j-2*w,s,t)
-                   ! if (val.NE.0) then
                    if (modulo(i+j-2*w+s+t,2).EQ.0) then
-                      ! write(10,rec=counter) i+ishft(j,8),preintildef12(i,j,2.5_prec)
                       temp = temp + coeff(w,i,j)*intinterm1(i+j-2*w,s,t)/norm(i+j-2*w)
                    end if
                 end do
@@ -1593,14 +1457,13 @@ contains
     close(11)
   end subroutine read_interm12_file
 
-  real(prec) function inttildef12(mm,nn,oo,pp,ss,tt,beta,intinterm12)
+  real(prec) function inttildef12(mm,nn,oo,pp,ss,tt,intinterm12)
     implicit none
-    integer    :: m,n,o,p,s,t,u,w,x,y
+    integer    :: m,n,o,p,s,t,x,y
     integer    :: mm,nn,oo,pp,ss,tt
-    integer    :: summing
-    integer    :: v1(4)
-    real(prec) :: tempf12,ttempf12,tttempf12,beta
-    real(prec) :: intinterm12(0:newhn,0:newhn,0:newhn,0:newhn)
+    integer    :: v1(4),v2(4)
+    real(prec) :: tempf12,ttempf12
+    real(prec) :: intinterm12(0:,0:,0:,0:)
     inttildef12 = 0._prec
     if (modulo(mm+nn+oo+pp+ss+tt,2).EQ.0) then
        if (ss.lt.tt) then
@@ -1610,35 +1473,23 @@ contains
           s=tt
           t=ss
        end if
-       v1 = [mm,nn,oo,pp]
-       v1 = sortt(v1)
-       m = v1(1)
-       n = v1(2)
-       o = v1(3)
-       p = v1(4)
-       ! do u = 0, s
+       v1(1) = mm
+       v1(2) = nn
+       v1(3) = oo
+       v1(4) = pp
+       v2 = sortt(v1)
+       m = v2(1)
+       n = v2(2)
+       o = v2(3)
+       p = v2(4)
        tempf12 = 0._prec
        do y = 0, o
           ttempf12 = 0._prec
           do x = 0, m
-             ! tttempf12 = 0._prec
-             ! if (m+n-2*x.LT.o+p-2*y) then
-             !    summing = m+n-2*x
-             ! else
-             !    summing = o+p-2*y
-             ! endif
-             ! do w = 0, summing
-                ! tttempf12 = tttempf12 + coeff(w,m+n-2*x,o+p-2*y)*intildef12(m+n-2*x+o+p-2*y-2*w,s+t-2*u)&
-                !      &/norm(m+n-2*x+o+p-2*y-2*w)/norm(s+t-2*u)
-             !    tttempf12 = tttempf12 + coeff(w,m+n-2*x,o+p-2*y)*intinterm1(m+n-2*x+o+p-2*y-2*w,s,t)&
-             !         &/norm(m+n-2*x+o+p-2*y-2*w)
-             ! end do
              ttempf12 = ttempf12 + coeff(x,m,n)*intinterm12(m+n-2*x,o+p-2*y,s,t)
           end do
           tempf12 = tempf12 + coeff(y,o,p)*ttempf12
        end do
-       ! inttildef12 = inttildef12 + coeff(u,s,t) * tempf12
-       ! end do
        inttildef12 = norm(mm)*norm(nn)*norm(oo)*norm(pp)*norm(ss)*norm(tt)*tempf12
     end if
   end function inttildef12
@@ -1792,7 +1643,7 @@ contains
     implicit none
     integer             :: i,j,s,t,ii,fun,number,m
     real(prec)          :: mm,lolzix
-    real(prec)          :: intinterm22(0:newhn,0:newhn,0:newhn,0:newhn)
+    real(prec)          :: intinterm22(0:,0:,0:,0:)
     m=newhn/2
     intinterm22 = 0._prec
     open(10,file='bas/file_t2i2.F',status='unknown',form='unformatted',access='direct',RECL=RECS)
@@ -1809,14 +1660,13 @@ contains
     close(10)
   end subroutine read_interm22_file
 
-  real(prec) function inttildef122(mm,nn,oo,pp,ss,tt,beta,intinterm22)
+  real(prec) function inttildef122(mm,nn,oo,pp,ss,tt,intinterm22)
     implicit none
-    integer    :: m,n,o,p,s,t,u,w,x,y
+    integer    :: m,n,o,p,s,t,x,y
     integer    :: mm,nn,oo,pp,ss,tt
-    integer    :: summing
-    integer    :: v1(4)
-    real(prec) :: tempf12,ttempf12,tttempf12,beta
-    real(prec) :: intinterm22(0:newhn,0:newhn,0:newhn,0:newhn)
+    integer    :: v1(4),v2(4)
+    real(prec) :: tempf12,ttempf12
+    real(prec) :: intinterm22(0:,0:,0:,0:)
     inttildef122 = 0._prec
     if (modulo(mm+nn+oo+pp+ss+tt,2).EQ.0) then
        if (ss.lt.tt) then
@@ -1826,35 +1676,23 @@ contains
           s=tt
           t=ss
        end if
-       v1 = [mm,nn,oo,pp]
-       v1 = sortt(v1)
-       m = v1(1)
-       n = v1(2)
-       o = v1(3)
-       p = v1(4)
-       ! do u = 0, s
+       v1(1) = mm
+       v1(2) = nn
+       v1(3) = oo
+       v1(4) = pp
+       v2 = sortt(v1)
+       m = v2(1)
+       n = v2(2)
+       o = v2(3)
+       p = v2(4)
        tempf12 = 0._prec
        do y = 0, o
           ttempf12 = 0._prec
           do x = 0, m
-             ! tttempf12 = 0._prec
-             ! if (m+n-2*x.LT.o+p-2*y) then
-             !    summing = m+n-2*x
-             ! else
-             !    summing = o+p-2*y
-             ! endif
-             ! do w = 0, summing
-                ! tttempf12 = tttempf12 + coeff(w,m+n-2*x,o+p-2*y)*intildef12(m+n-2*x+o+p-2*y-2*w,s+t-2*u)&
-                !      &/norm(m+n-2*x+o+p-2*y-2*w)/norm(s+t-2*u)
-             !    tttempf12 = tttempf12 + coeff(w,m+n-2*x,o+p-2*y)*intinterm1(m+n-2*x+o+p-2*y-2*w,s,t)&
-             !         &/norm(m+n-2*x+o+p-2*y-2*w)
-             ! end do
              ttempf12 = ttempf12 + coeff(x,m,n)*intinterm22(m+n-2*x,o+p-2*y,s,t)
           end do
           tempf12 = tempf12 + coeff(y,o,p)*ttempf12
        end do
-       ! inttildef12 = inttildef12 + coeff(u,s,t) * tempf12
-       ! end do
        inttildef122 = norm(mm)*norm(nn)*norm(oo)*norm(pp)*norm(ss)*norm(tt)*tempf12
     end if
   end function inttildef122
@@ -1875,8 +1713,7 @@ contains
 
   subroutine import_dzejmu()
     implicit none
-    real(prec) :: beta
-    integer    :: i,mu,b
+    integer    :: mu,b
     open(10,file='bas/dz_2.5.dat')
     b = bet(2.5_prec)
     dzejmu(b,:)=0._prec
@@ -1926,10 +1763,9 @@ contains
     end if
   end function bet
 
-  subroutine check(what,intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22,intf12)
+  subroutine check(what,intildef12,intildef122,intinterm12,intinterm22,intf12)
     implicit none
     real (prec) :: intildef12(0:newhn,0:newhn),intildef122(0:newhn,0:newhn),intf12(0:,0:,0:,0:)
-    real (prec) :: intinterm1(0:newhn,0:newhn,0:newhn),intinterm2(0:newhn,0:newhn,0:newhn)
     real (prec) :: intinterm12(0:newhn,0:newhn,0:newhn,0:newhn),intinterm22(0:newhn,0:newhn,0:newhn,0:newhn)
     character(len=*), intent(in) :: what
     real(prec), parameter :: thr = 1.e-5
@@ -1998,10 +1834,10 @@ contains
           write(LOUT,'(a)') "    intildef12 is correct"
        end if
     case ('inttildef12')
-       if (abs(inttildef12(2,2,2,2,2,2,2.5_prec,intinterm12)-0.03541268534).GT.thr.or.&
-            &abs(inttildef12(1,5,6,2,7,5,2.5_prec,intinterm12)+0.00090355492).GT.thr) then
-          print*, "2,2,2,2,2,2",inttildef12(2,2,2,2,2,2,2.5_prec,intinterm12)
-          print*, "1,5,6,2,7,5",inttildef12(1,5,6,2,7,5,2.5_prec,intinterm12)
+       if (abs(inttildef12(2,2,2,2,2,2,intinterm12)-0.03541268534).GT.thr.or.&
+            &abs(inttildef12(1,5,6,2,7,5,intinterm12)+0.00090355492).GT.thr) then
+          print*, "2,2,2,2,2,2",inttildef12(2,2,2,2,2,2,intinterm12)
+          print*, "1,5,6,2,7,5",inttildef12(1,5,6,2,7,5,intinterm12)
           print*, "inttildef12 doesn't work"
           call kurwout()
        else
@@ -2016,8 +1852,8 @@ contains
           write(LOUT,'(a)') "    intildef122 is correct"
        end if
     case ('inttildef122')
-       if (abs(inttildef122(2,2,2,2,2,2,4._prec,intinterm22)-0.010651100993).GT.thr.or.&
-            &abs(inttildef122(1,5,6,2,7,5,4._prec,intinterm22)+0.00039196641).GT.thr) then
+       if (abs(inttildef122(2,2,2,2,2,2,intinterm22)-0.010651100993).GT.thr.or.&
+            &abs(inttildef122(1,5,6,2,7,5,intinterm22)+0.00039196641).GT.thr) then
           print*, "inttildef122 doesn't work"
           call kurwout()
        else
