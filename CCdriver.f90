@@ -188,22 +188,22 @@ logical :: DIIS
 integer :: DIIS_off,DIIS_n
 real(dble) :: Tcpu,Twall
 integer :: counter
-! integer :: a,b,c,d
-integer :: i,j
+integer :: i
 logical :: READMODE
 !!! some of my shit
 real(prec) :: t0,t1
-real(prec), allocatable :: occdens(:,:)
+real(prec), allocatable :: occdens(:,:),occdensE(:,:)
 real(prec), allocatable :: intildef12(:,:),intildef122(:,:),intinterm1(:,:,:)
 real(prec), allocatable :: intinterm2(:,:,:),intinterm12(:,:,:,:),intinterm22(:,:,:,:)
-real(preC), allocatable :: intf12(:,:,:,:),int6f12table(:,:,:,:,:,:),int6f122table(:,:,:,:,:,:)!ROIs(:,:,:,:),
+real(preC), allocatable :: intf12(:,:,:,:),int6f12table(:,:,:,:,:,:),int6f122table(:,:,:,:,:,:)!,ROIs(:,:,:,:),
 allocate(intildef12(0:newhn,0:newhn),intildef122(0:newhn,0:newhn))
 allocate(intinterm1(0:newhn,0:newhn,0:newhn),intinterm2(0:newhn,0:newhn,0:newhn))
 allocate(intinterm12(0:newhn,0:newhn,0:newhn,0:newhn),intinterm22(0:newhn,0:newhn,0:newhn,0:newhn))
 ! allocate(ROIs(0:System%OrbSystem(1)%nbas-1,0:System%OrbSystem(1)%nbas-1,&
 !      0:System%OrbSystem(1)%nbas-1,0:System%OrbSystem(1)%nbas-1))
-allocate(intf12(0:newhn+20,0:newhn+20,0:newhn+20,0:newhn+20))
-allocate(occdens(System%OrbSystem(1)%nbas,System%OrbSystem(1)%nbas))
+allocate(intf12(0:ROIsum,0:ROIsum,0:ROIsum,0:ROIsum))
+allocate(occdens(System%OrbSystem(1)%scfnbas,System%OrbSystem(1)%scfnbas),&
+     occdensE(System%OrbSystem(1)%scfnbas,System%OrbSystem(1)%scfnbas))
 !!! some of my shit
 
 LPRINT = merge(Control%LPRINT,0,fullPRINT)
@@ -244,13 +244,13 @@ associate(PairSystem => System%PairSystem(1,1))
   call mem_alloc(matP1_S,nbas,nbas); call mem_alloc(matP1_T,nbas,nbas)
   call mem_alloc(matPe_S,nbas,nbas); call mem_alloc(matPe_T,nbas,nbas)
   call mem_alloc(matP2_S,nbas,nbas); call mem_alloc(matP2_T,nbas,nbas)
-  allocate(int6f12table(0:System%OrbSystem(1)%nbas-1,0:System%OrbSystem(1)%nbas-1,&
-       &0:System%OrbSystem(1)%nbas-1,0:System%OrbSystem(1)%nbas-1&
-       ,0:System%OrbSystem(1)%nbas-1,0:System%OrbSystem(1)%nbas-1))
-  allocate(int6f122table(0:System%OrbSystem(1)%nbas-1,0:System%OrbSystem(1)%nbas-1,&
-       &0:System%OrbSystem(1)%nbas-1,0:System%OrbSystem(1)%nbas-1&
-       ,0:System%OrbSystem(1)%nbas-1,0:System%OrbSystem(1)%nbas-1))
-  if (stage>0) then
+  allocate(int6f12table(0:System%OrbSystem(1)%scfnbas-1,0:System%OrbSystem(1)%scfnbas-1,&
+       &0:System%OrbSystem(1)%scfnbas-1,0:System%OrbSystem(1)%scfnbas-1&
+       ,0:System%OrbSystem(1)%scfnbas-1,0:System%OrbSystem(1)%scfnbas-1))
+  allocate(int6f122table(0:System%OrbSystem(1)%scfnbas-1,0:System%OrbSystem(1)%scfnbas-1,&
+       &0:System%OrbSystem(1)%scfnbas-1,0:System%OrbSystem(1)%scfnbas-1&
+       ,0:System%OrbSystem(1)%scfnbas-1,0:System%OrbSystem(1)%scfnbas-1))
+  ! if (stage>0) then
      call mem_alloc(matL1_S,nbas,nbas); call mem_alloc(matL1_T,nbas,nbas)
      call mem_alloc(matJ_S,nbas,nbas,norb,norb)
      call mem_alloc(matJ_T,nbas,nbas,norb,norb)
@@ -258,7 +258,7 @@ associate(PairSystem => System%PairSystem(1,1))
      call mem_alloc(matK_T,nbas,nbas,norb,norb)
      call mem_alloc(matM_S,nbas,nbas,norb,norb)
      call mem_alloc(matM_T,nbas,nbas,norb,norb)
-  end if
+  ! end if
 
   call mem_alloc(vec0,nbas,norb,norb)
   call mem_alloc(vec1,nbas,norb,norb)
@@ -284,7 +284,7 @@ associate(PairSystem => System%PairSystem(1,1))
   write(LOUT,'(a)') "--------------------------------------------------------------------------------"
   write(LOUT,'(a)') "*** Gauss-Grining module initializing        ***"
 
-  write(LOUT,'(a)') "**  Importing weights and generating hermites **"
+  write(LOUT,'(a)') "**  Importing shit and generating more shit  **"
   call import_coo
   call import_binomials
   call import_factorials
@@ -296,34 +296,49 @@ associate(PairSystem => System%PairSystem(1,1))
   if (READMODE) then
      ! READMODE
      call read_f12(intf12)
-     ! call create_ROI(System%OrbSystem(1)%nbas,norb,counta,intf12)
-     ! call read_ROI(counta,ROIs)
-     call create_matS_file(System%OrbSystem(1)%nbas,counter)
-     call read_matS_file(matS_S,matS_T,counter)
-     call create_matH_file(System%OrbSystem(1)%nbas,counter)
-     call read_matH_file(matF_S,matF_T,counter)
+     call density_matrix(System%OrbSystem(1)%scfnbas,norb,SCF%orb_energy,SCF%orb_vector,occdens,occdensE)
      call read_intildef12_file(intildef12)
      call read_interm1_file(intinterm1)
      call read_interm12_file(intinterm12)
      call read_intildef122_file(intildef122)
      call read_interm2_file(intinterm2)
      call read_interm22_file(intinterm22)
-     call density_matrix(System%OrbSystem(1)%nbas,norb,SCF%orb_vector,occdens)
-     call create_vec0_file(System%OrbSystem(1)%nbas,norb,counter,intf12,SCF%orb_vector)
-     call read_vec0_file(vec0,counter)
      call create_int6f122_file(System%OrbSystem(1)%nbas,intinterm22,counter)
      call read_int6f122_file(System%OrbSystem(1)%tgg,int6f122table,counter)
      call create_int6f12_file(System%OrbSystem(1)%nbas,intinterm12,counter)
      call read_int6f12_file(System%OrbSystem(1)%tgg,int6f12table,counter)
-  else
-     ! CREATEMODE
-     call read_f12(intf12)
-     ! call create_ROI(System%OrbSystem(1)%nbas,norb,counta,intf12)
-     ! call read_ROI(counta,ROIs)
+     call create_ROI(System%OrbSystem(1)%nbas,System%OrbSystem(1)%scfnbas,norb,&
+          &matP1_S,matP1_T,matPe_S,matPe_T,intf12,occdens,occdensE)
      call create_matS_file(System%OrbSystem(1)%nbas,counter)
      call read_matS_file(matS_S,matS_T,counter)
      call create_matH_file(System%OrbSystem(1)%nbas,counter)
      call read_matH_file(matF_S,matF_T,counter)
+     call create_vec0_file(System%OrbSystem(1)%nbas,System%OrbSystem(1)%scfnbas,norb,&
+          &counter,intf12,SCF%orb_vector)
+     call read_vec0_file(vec0,counter)
+     vec1(:,:,:) = 0._prec
+     matL1_S(:,:) = 0._prec
+     matL1_T(:,:) = 0._prec
+     call make_mats(System%OrbSystem(1)%nbas,System%OrbSystem(1)%scfnbas,norb,&
+          &int6f122table,matJ_S,matJ_T,matM_S,matM_T,SCF%orb_vector)
+     matK_S(:,:,:,:) = matJ_S
+     matK_T(:,:,:,:) = matJ_T
+     do iorb=1,norb
+        matF_S(:,:) = matF_S + matJ_S(:,:,iorb,iorb)! because the 2*J-K
+        matF_T(:,:) = matF_T + matJ_T(:,:,iorb,iorb)! eliminates one of them
+     end do
+     call make_vecP(System%OrbSystem(1)%nbas,System%OrbSystem(1)%scfnbas,norb,&
+          &vecP,int6f12table,SCF%orb_vector,occdens)
+     if(fullPRINT) then
+        call timer('createmode uses',Tcpu,Twall)
+        flush(LOUT)
+     endif
+
+     write(LOUT,'(a)') "--------------------------------------------------------------------------------"
+  else
+     ! CREATEMODE
+     call read_f12(intf12)
+     call density_matrix(System%OrbSystem(1)%scfnbas,norb,SCF%orb_energy,SCF%orb_vector,occdens,occdensE)
      call create_intildef12_file()
      call read_intildef12_file(intildef12)
      call create_interm1_file(intildef12)
@@ -336,12 +351,38 @@ associate(PairSystem => System%PairSystem(1,1))
      call read_interm2_file(intinterm2)
      call create_interm22_file(intinterm2)
      call read_interm22_file(intinterm22)
-     call create_int2_vec_file(System%OrbSystem(1)%nbas,norb,counter,intf12,SCF%orb_vector)
-     call read_int2_vec_file(vec0,counter)
      call create_int6f122_file(System%OrbSystem(1)%nbas,intinterm22,counter)
      call read_int6f122_file(System%OrbSystem(1)%tgg,int6f122table,counter)
      call create_int6f12_file(System%OrbSystem(1)%nbas,intinterm12,counter)
      call read_int6f12_file(System%OrbSystem(1)%tgg,int6f12table,counter)
+     call create_ROI(System%OrbSystem(1)%nbas,System%OrbSystem(1)%scfnbas,norb,&
+          &matP1_S,matP1_T,matPe_S,matPe_T,intf12,occdens,occdensE)
+     call create_matS_file(System%OrbSystem(1)%nbas,counter)
+     call read_matS_file(matS_S,matS_T,counter)
+     call create_matH_file(System%OrbSystem(1)%nbas,counter)
+     call read_matH_file(matF_S,matF_T,counter)
+     call create_vec0_file(System%OrbSystem(1)%nbas,System%OrbSystem(1)%scfnbas,norb,&
+          &counter,intf12,SCF%orb_vector)
+     call read_vec0_file(vec0,counter)
+     vec1(:,:,:) = 0._prec
+     matL1_S(:,:) = 0._prec
+     matL1_T(:,:) = 0._prec
+     call make_mats(System%OrbSystem(1)%nbas,System%OrbSystem(1)%scfnbas,norb,&
+          &int6f122table,matJ_S,matJ_T,matM_S,matM_T,SCF%orb_vector)
+     matK_S(:,:,:,:) = matJ_S
+     matK_T(:,:,:,:) = matJ_T
+     do iorb=1,norb
+        matF_S(:,:) = matF_S + matJ_S(:,:,iorb,iorb)! because the 2*J-K
+        matF_T(:,:) = matF_T + matJ_T(:,:,iorb,iorb)! eliminates one of them
+     end do
+     call make_vecP(System%OrbSystem(1)%nbas,System%OrbSystem(1)%scfnbas,norb,&
+          &vecP,int6f12table,SCF%orb_vector,occdens)
+     if(fullPRINT) then
+        call timer('createmode uses',Tcpu,Twall)
+        flush(LOUT)
+     endif
+
+     write(LOUT,'(a)') "--------------------------------------------------------------------------------"
   end if
 
   ! write(LOUT,'(a)') "**  Checking                                  **"
@@ -356,13 +397,6 @@ associate(PairSystem => System%PairSystem(1,1))
   ! call check('inttildef12',intildef12,intildef122,intinterm12,intinterm22,intf12)
   ! call check('intildef122',intildef12,intildef122,intinterm12,intinterm22,intf12)
   ! call check('inttildef122',intildef12,intildef122,intinterm12,intinterm22,intf12)
-
-  if(fullPRINT) then
-     call timer('import + checks use',Tcpu,Twall)
-     flush(LOUT)
-  endif
-
-  write(LOUT,'(a)') "--------------------------------------------------------------------------------"
 
   ! call CCint2_matS('A',0,TMP,PairSystem,PairSystem)
   ! matS_S(:,:) = TMP
@@ -416,21 +450,10 @@ associate(PairSystem => System%PairSystem(1,1))
   ! endif
 
 
-  call cpu_time(t0)
-  call make_mats(System%OrbSystem(1)%nbas,norb,int6f122table,&
-       matJ_S,matJ_T,matM_S,matM_T,SCF%orb_vector)
-  call cpu_time(t1)
-  print*, "time is",t1-t0
-  stop
 
 
-  ! matK_S(:,:,:,:) = matJ_S
-  ! matK_T(:,:,:,:) = matJ_T
 
-  ! do iorb=1,norb
-  !    matF_S(:,:) = matF_S + matJ_S(:,:,iorb,iorb)! because the 2*J-K
-  !    matF_T(:,:) = matF_T + matJ_T(:,:,iorb,iorb)! eliminates one of them
-  ! end do
+  !!!Obsolete matF testing
 
 
   ! !matF testing
@@ -556,6 +579,7 @@ associate(PairSystem => System%PairSystem(1,1))
   !    enddo
 
 
+  !!! Obsolete p1 subroutine
   ! call make_p1(System%OrbSystem(1)%nbas,norb,matP1_S,matP1_T,SCF%orb_energy,matPe_S,matPe_T,intf12)
 
 
@@ -594,9 +618,6 @@ associate(PairSystem => System%PairSystem(1,1))
   ! enddo
 
 
-  call make_vecP(System%OrbSystem(1)%nbas,norb,vecP,int6f12table,SCF%orb_vector,occdens)
-
-
   ! vecP = 0._prec
   ! do jorb=1,norb
   !    do iorb=1,norb
@@ -623,6 +644,7 @@ associate(PairSystem => System%PairSystem(1,1))
   ! call free_CCint3
 
 
+  !!!Watch out -- p2 is still being made here!!!
   matP2_S = 0._prec
   matP2_T = 0._prec
   do jorb=1,norb
@@ -651,7 +673,6 @@ associate(PairSystem => System%PairSystem(1,1))
      call timer('3-el integrals use',Tcpu,Twall)
      flush(LOUT)
   endif
-  stop
 
   deallocate(intildef12,intildef122,intinterm1,intinterm2,intinterm12,intinterm22,intf12)
   deallocate(int6f12table,int6f122table)
@@ -740,9 +761,9 @@ associate(PairSystem => System%PairSystem(1,1))
   LHS(:,:) = matS_T
   call shrink_Triplet(LHS,Triplet)
   call shrink_Triplet(LHS,OV_T)
-  open(11,file='fajl.dat',status='unknown')
-  write(11,*) LHS
-  close(11)
+  ! open(11,file='fajl.dat',status='unknown')
+  ! write(11,*) LHS
+  ! close(11)
   if(fullPRINT) call symmetry_check(0,0,OV_T%nbas,LHS)
   call init_linsolver(project_T,'U','LDL1',OV_T%nbas,LHS)
 
@@ -1458,14 +1479,14 @@ associate(PairSystem => System%PairSystem(1,1))
   call mem_dealloc(vec1)
   call mem_dealloc(vec0)
 
-  if (stage>0) then
+  ! if (stage>0) then
      call mem_dealloc(matM_T)
      call mem_dealloc(matM_S)
      call mem_dealloc(matK_T)
      call mem_dealloc(matK_S)
      call mem_dealloc(matJ_T)
      call mem_dealloc(matJ_S)
-  endif
+  ! endif
   call mem_dealloc(matL1_S); call mem_dealloc(matL1_T)
   call mem_dealloc(matP2_S); call mem_dealloc(matP2_T)
   call mem_dealloc(matPe_S); call mem_dealloc(matPe_T)

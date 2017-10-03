@@ -124,11 +124,11 @@ integer :: i1,j1,i2,j2,ij2
 
 LPRINT_mod = merge(Control%LPRINT,0,fullPRINT)
 
-nbas = OrbSystem%nbas
-tgg  = OrbSystem%tgg
+nbas    = OrbSystem%scfnbas
+tgg     = OrbSystem%tgg
 !nbas = 16
 !OrbSystem%nbas = 16
-print*, OrbSystem%nbas,"TGNBAS",OrbSystem%tgg,"TGG"
+print*, nbas,"SCFNBAS",OrbSystem%tgg,"TGG"
 
 call mem_alloc(matH,nbas,nbas)
 call mem_alloc(matS,nbas,nbas)

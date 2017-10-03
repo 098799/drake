@@ -2,7 +2,7 @@ module ggint
   use precision, only : prec
   use file_OUT, only : LOUT
   implicit none
-  integer, parameter :: newhn=50
+  integer, parameter :: newhn=60
   integer, parameter :: ggn=400,hn=200,ghn=100,tho=1000,RECB=36,RECS=20!,RECB=32,RECS=16!
   integer, parameter :: ROIsum=50
   real(prec) :: hermiteh_gh(0:hn,ggn),ghabsciss(ghn),ghweights(ghn)!,ggabsciss(:),ggweights(:),hermiteh_gg(4,0:hn,ggn)
@@ -15,48 +15,51 @@ module ggint
 
 contains
 
-  subroutine density_matrix(m,n,orbvec,occdens)
+  subroutine density_matrix(mscf,n,eorb,orbvec,occdens,occdensE)
     implicit none
-    integer    :: i,j,m,n,al,ii
-    real(prec) :: orbvec(:,:),occdens(:,:)
-    real(prec) :: val,t1,t0
+    integer    :: i,j,mscf,n,al,ii
+    real(prec) :: eorb(:),orbvec(:,:),occdens(:,:),occdensE(:,:)
+    real(prec) :: val,valE,t1,t0
     occdens = 0._prec
-    do j = 1, m
+    occdensE = 0._prec
+    do j = 1, mscf
        do i = 1, j
-          val = sum(orbvec(i,1:n)*orbvec(j,1:n))
+          val  = sum(orbvec(i,1:n)*orbvec(j,1:n))
+          valE = sum(eorb(1:n)*orbvec(i,1:n)*orbvec(j,1:n))
           occdens(i,j) = val
           occdens(j,i) = val
+          occdensE(i,j) = valE
+          occdensE(j,i) = valE
        end do
     end do
   end subroutine density_matrix
 
-  subroutine make_vecP(m,n,vecp,int6f12table,orbvec,occdens)
+  subroutine make_vecP(m,mscf,n,vecp,int6f12table,orbvec,occdens)
     implicit none
-    integer    :: m,n,i,j,B,A,al,ij,k,l,p,r
+    integer    :: m,mscf,n,i,j,B,A,al,ij,k,l,p,r
     real(prec) :: temp,temp2,val1,val2
     real(prec) :: vecp(:,:,:),orbvec(:,:),occdens(:,:)
     real(prec) :: int6f12table(0:,0:,0:,0:,0:,0:)
+    vecp = 0._prec
     do j = 0, m-1
        do i = 0, j
-          ij = j*(j+1)+i+1
+          ij = j*(j+1)/2+i+1
           do B = 1, n
              do A = 1, B
                 temp2 = 0._prec
-                do l = 0, m-1
-                   do k = 0, m-1
+                do l = 0, mscf-1
+                   do k = 0, mscf-1
                       temp = 0._prec
-                      do r = 0, m-1, 2
-                         do p = 0, m-1, 2
-                            val1 = occdens(r+1,p+1)*int6(r,k,l,j,p,i,int6f12table)
-                            val2 = occdens(r+1,p+1)*int6(r,k,l,i,p,j,int6f12table)
-                            temp = temp + val1 + val2
+                      do r = 0, mscf-1, 2
+                         do p = 0, mscf-1, 2
+                            val1 = occdens(r+1,p+1)*(int6(r,k,l,j,p,i,int6f12table)+int6(r,k,l,i,p,j,int6f12table))
+                            temp = temp + val1
                          end do
                       end do
-                      do r = 1, m-1, 2
-                         do p = 1, m-1, 2
-                            val1 = occdens(r+1,p+1)*int6(r,k,l,j,p,i,int6f12table)
-                            val2 = occdens(r+1,p+1)*int6(r,k,l,i,p,j,int6f12table)
-                            temp = temp + val1 + val2
+                      do r = 1, mscf-1, 2
+                         do p = 1, mscf-1, 2
+                            val1 = occdens(r+1,p+1)*(int6(r,k,l,j,p,i,int6f12table)+int6(r,k,l,i,p,j,int6f12table))
+                            temp = temp + val1
                          end do
                       end do
                       temp2 = temp2 + orbvec(k+1,A)*orbvec(l+1,B)*temp
@@ -84,8 +87,9 @@ contains
     integer    :: ii,i,j,k,l,number
     real(prec) :: temp
     real(prec) :: intf12(0:,0:,0:,0:)
-    open(11,file='bas/file_f12.F',status='unknown',form='unformatted',access='direct',RECL=RECS)
-    do ii = 1, 1758276
+    open(11,file='dat/file_f12.F',status='unknown',form='unformatted',access='direct',RECL=RECS)
+    intf12 = 0._prec
+    do ii = 1, 779968 !11029041 !for 80
        read(11,rec=ii) number,temp
        i=iand(number,255)
        j=iand(ishft(number,-8),255)
@@ -101,137 +105,150 @@ contains
     close(11)
   end subroutine read_f12
 
-  subroutine read_ROI(counter,ROIs)
+  subroutine create_ROI(m,mscf,n,matps,matpt,matpes,matpet,intf12,occdens,occdensE)
     implicit none
-    integer :: counter
-    integer :: number,ii,i,j,k,l
-    real(prec) :: lolzix,ROIS(0:,0:,0:,0:)
-    open(11,file='bas/file_ROI.F',status='unknown',form='unformatted',access='direct',RECL=RECB)
-    ROIs = 0._prec
-    do ii = 1, counter
-       read(11,rec=ii) number,lolzix
-       i=iand(number,255)
-       j=iand(ishft(number,-8),255)
-       k=iand(ishft(number,-16),255)
-       l=ishft(number,-24)
-       ROIs(i,j,k,l) = lolzix
-       ROIs(k,l,i,j) = lolzix
-    end do
-    close(11)
-  end subroutine read_ROI
-
-  subroutine create_ROI(m,n,counter,intf12)
-    implicit none
-    integer    :: i,j,k,l,counter,m,n,al,p,ij,kl
-    real(prec) :: temp,intf12(0:,0:,0:,0:)
-    open(11,file='bas/file_ROI.F',status='unknown',form='unformatted',access='direct',RECL=RECB)
-    counter = 0
-    ! beta = 2*aleph+1._prec
-    do l = 0, m-1
-       do k = 0, m-1
-          kl = l*(l+1)/2 + k + 1
-          do j = 0, m-1
-             do i = 0, m-1
-                ij = j*(j+1)/2 + i + 1
-                if (kl.GE.ij) then
-                   temp = 0._prec
-                   do p = 0, ROIsum
-                      do al = 0, n-1
-                         if (modulo(i+j+k+l,2).EQ.0) then
-                            temp = temp + intf12(al,p,i,j)*intf12(al,p,k,l)
-                         end if
-                      end do
-                   end do
-                   counter = counter + 1
-                   write(11,rec=counter) i+ishft(j,8)+ishft(k,16)+ishft(l,24),temp
-                end if
-             end do
-          end do
-       end do
-    end do
-    close(11)
-  end subroutine create_ROI
-
-  subroutine make_p1(m,n,matps,matpt,eorb,matpes,matpet,intf12)
-    implicit none
-    integer    :: m,n
-    integer    :: i,j,k,l,al,p,ij,kl
-    real(prec) :: temp,tempe,beta
-    real(prec) :: tttemp
-    real(prec) :: matps(:,:), matpt(:,:), matpes(:,:), matpet(:,:)
-    real(prec) :: eorb(n),intf12(0:,0:,0:,0:)
-    beta = 2*aleph+1._prec
-    matps  = 0._prec
-    matpt  = 0._prec
+    integer    :: i,j,k,l,counter,m,n,ij,kl,p,q,r,rs,mscf
+    real(prec) :: intf12(0:,0:,0:,0:)
+    real(prec) :: temp1,temp2,temp3,temp4,ttemp1,ttemp2,ttemp3,ttemp4
+    real(prec) :: temp1E,temp2E,temp3E,temp4E
+    real(prec) :: val,valE,val1,val2,val3,val4,occdens(:,:),occdensE(:,:)
+    real(prec) :: matps(:,:),matpt(:,:),matpes(:,:),matpet(:,:)
+    matps = 0._prec
+    matpt = 0._prec
     matpes = 0._prec
     matpet = 0._prec
-    do l = 0, m-1
-       do k = 0, l
-          kl=l*(l+1)/2+k+1
-          do j = 0, m-1
-             do i = 0, j
-                ij=j*(j+1)/2+i+1
-                temp = 0._prec
-                tempe = 0._prec
-                do p = 0, ROIsum
-                   do al = 0, n-1
-                      tttemp = intf12(i,j,al,p)*intf12(al,p,k,l)
-                      temp = temp + tttemp
-                      tempe = tempe + tttemp*eorb(al+1)
+    do j = 0, m-1
+       do i = 0, j
+          ij = j*(j+1)/2+i+1
+          do l = 0, m-1
+             do k = 0, l
+                kl = l*(l+1)/2+k+1
+                ttemp1 = 0._prec
+                ttemp2 = 0._prec
+                ttemp3 = 0._prec
+                ttemp4 = 0._prec
+                temp1E = 0._prec
+                temp2E = 0._prec
+                temp3E = 0._prec
+                temp4E = 0._prec
+                do p = 0, mscf-1
+                   do r = 0, mscf-1
+                      temp1 = 0._prec
+                      temp2 = 0._prec
+                      temp3 = 0._prec
+                      temp4 = 0._prec
+                      do q = 0, ROIsum
+                         val1 = intf12(q,r,j,i)
+                         val2 = intf12(q,p,l,k)
+                         val3 = intf12(q,r,i,j)
+                         val4 = intf12(q,p,k,l)
+                         temp1 = temp1 + val1*val2
+                         temp2 = temp2 + val3*val4
+                         temp3 = temp3 + val1*val4
+                         temp4 = temp4 + val2*val3
+                      end do
+                      val = occdens(p+1,r+1)
+                      valE = occdensE(p+1,r+1)
+                      ttemp1 = ttemp1 + val*temp1
+                      ttemp2 = ttemp2 + val*temp2
+                      ttemp3 = ttemp3 + val*temp3
+                      ttemp4 = ttemp4 + val*temp4
+                      temp1E = temp1E + valE*temp1
+                      temp2E = temp2E + valE*temp2
+                      temp3E = temp3E + valE*temp3
+                      temp4E = temp4E + valE*temp4
                    end do
                 end do
-                matps(ij,kl) = matps(ij,kl) + temp
-                matpt(ij,kl) = matpt(ij,kl) + temp
-                matpes(ij,kl) = matpes(ij,kl) + tempe
-                matpet(ij,kl) = matpet(ij,kl) + tempe
-                temp = 0._prec
-                tempe = 0._prec
-                do p = 0, ROIsum
-                   do al = 0, n-1
-                      tttemp = intf12(j,i,al,p)*intf12(al,p,l,k)
-                      temp = temp + tttemp
-                      tempe = tempe + tttemp*eorb(al+1)
-                   end do
-                end do
-                matps(ij,kl) = matps(ij,kl) + temp
-                matpt(ij,kl) = matpt(ij,kl) + temp
-                matpes(ij,kl) = matpes(ij,kl) + tempe
-                matpet(ij,kl) = matpet(ij,kl) + tempe
-                temp = 0._prec
-                tempe = 0._prec
-                do p = 0, ROIsum
-                   do al = 0, n-1
-                      tttemp = intf12(j,i,al,p)*intf12(al,p,k,l)
-                      temp = temp + tttemp
-                      tempe = tempe + tttemp*eorb(al+1)
-                   end do
-                end do
-                matps(ij,kl) = matps(ij,kl) + temp
-                matpt(ij,kl) = matpt(ij,kl) - temp
-                matpes(ij,kl) = matpes(ij,kl) + tempe
-                matpet(ij,kl) = matpet(ij,kl) - tempe
-                temp = 0._prec
-                tempe = 0._prec
-                do p = 0, ROIsum
-                   do al = 0, n-1
-                      tttemp = intf12(i,j,al,p)*intf12(al,p,l,k)
-                      temp = temp + tttemp
-                      tempe = tempe + tttemp*eorb(al+1)
-                   end do
-                end do
-                matps(ij,kl) = matps(ij,kl) + temp
-                matpt(ij,kl) = matpt(ij,kl) - temp
-                matpes(ij,kl) = matpes(ij,kl) + tempe
-                matpet(ij,kl) = matpet(ij,kl) - tempe
+                matps(ij,kl) = ttemp1+ttemp2+ttemp3+ttemp4
+                matpt(ij,kl) = ttemp1+ttemp2-ttemp3-ttemp4
+                matpes(ij,kl) = temp1E+temp2E+temp3E+temp4E
+                matpet(ij,kl) = temp1E+temp2E-temp3E-temp4E
              end do
           end do
        end do
     end do
-  end subroutine make_p1
+  end subroutine create_ROI
 
-  subroutine make_mats(m,n,int6f122table,matjs,matjt,matms,matmt,orbvec)
+  ! subroutine make_p1(m,n,matps,matpt,eorb,matpes,matpet,intf12)
+  !   implicit none
+  !   integer    :: m,n
+  !   integer    :: i,j,k,l,al,p,ij,kl
+  !   real(prec) :: temp,tempe,beta
+  !   real(prec) :: tttemp
+  !   real(prec) :: matps(:,:), matpt(:,:), matpes(:,:), matpet(:,:)
+  !   real(prec) :: eorb(n),intf12(0:,0:,0:,0:)
+  !   beta = 2*aleph+1._prec
+  !   matps  = 0._prec
+  !   matpt  = 0._prec
+  !   matpes = 0._prec
+  !   matpet = 0._prec
+  !   do l = 0, m-1
+  !      do k = 0, l
+  !         kl=l*(l+1)/2+k+1
+  !         do j = 0, m-1
+  !            do i = 0, j
+  !               ij=j*(j+1)/2+i+1
+  !               temp = 0._prec
+  !               tempe = 0._prec
+  !               do p = 0, ROIsum
+  !                  do al = 0, n-1
+  !                     tttemp = intf12(i,j,al,p)*intf12(al,p,k,l)
+  !                     temp = temp + tttemp
+  !                     tempe = tempe + tttemp*eorb(al+1)
+  !                  end do
+  !               end do
+  !               matps(ij,kl) = matps(ij,kl) + temp
+  !               matpt(ij,kl) = matpt(ij,kl) + temp
+  !               matpes(ij,kl) = matpes(ij,kl) + tempe
+  !               matpet(ij,kl) = matpet(ij,kl) + tempe
+  !               temp = 0._prec
+  !               tempe = 0._prec
+  !               do p = 0, ROIsum
+  !                  do al = 0, n-1
+  !                     tttemp = intf12(j,i,al,p)*intf12(al,p,l,k)
+  !                     temp = temp + tttemp
+  !                     tempe = tempe + tttemp*eorb(al+1)
+  !                  end do
+  !               end do
+  !               matps(ij,kl) = matps(ij,kl) + temp
+  !               matpt(ij,kl) = matpt(ij,kl) + temp
+  !               matpes(ij,kl) = matpes(ij,kl) + tempe
+  !               matpet(ij,kl) = matpet(ij,kl) + tempe
+  !               temp = 0._prec
+  !               tempe = 0._prec
+  !               do p = 0, ROIsum
+  !                  do al = 0, n-1
+  !                     tttemp = intf12(j,i,al,p)*intf12(al,p,k,l)
+  !                     temp = temp + tttemp
+  !                     tempe = tempe + tttemp*eorb(al+1)
+  !                  end do
+  !               end do
+  !               matps(ij,kl) = matps(ij,kl) + temp
+  !               matpt(ij,kl) = matpt(ij,kl) - temp
+  !               matpes(ij,kl) = matpes(ij,kl) + tempe
+  !               matpet(ij,kl) = matpet(ij,kl) - tempe
+  !               temp = 0._prec
+  !               tempe = 0._prec
+  !               do p = 0, ROIsum
+  !                  do al = 0, n-1
+  !                     tttemp = intf12(i,j,al,p)*intf12(al,p,l,k)
+  !                     temp = temp + tttemp
+  !                     tempe = tempe + tttemp*eorb(al+1)
+  !                  end do
+  !               end do
+  !               matps(ij,kl) = matps(ij,kl) + temp
+  !               matpt(ij,kl) = matpt(ij,kl) - temp
+  !               matpes(ij,kl) = matpes(ij,kl) + tempe
+  !               matpet(ij,kl) = matpet(ij,kl) - tempe
+  !            end do
+  !         end do
+  !      end do
+  !   end do
+  ! end subroutine make_p1
+
+  subroutine make_mats(m,mscf,n,int6f122table,matjs,matjt,matms,matmt,orbvec)
     implicit none
-    integer :: m,n,counter
+    integer :: m,n,counter,mscf
     integer :: i,j,k,l,p,r,A,B,ij,kl,ii
     real(prec) :: temp,temp1,temp2,temp3,temp4
     real(prec) :: val, val1, val2, val3, val4
@@ -256,10 +273,10 @@ contains
                       temp2 = 0._prec
                       temp3 = 0._prec
                       temp4 = 0._prec
-                      do p = 0, m-1
+                      do p = 0, mscf-1
                          do r = 0, p
                             if (modulo(i+j+k+l+p+r,2).EQ.0) then
-                               temp=orbvec(r,A)*orbvec(p,B)
+                               temp=orbvec(r+1,A)*orbvec(p+1,B)
                                val1=int6(r,p,i,k,j,l,int6f122table)
                                val2=int6(r,p,j,l,i,k,int6f122table)
                                val3=int6(r,p,i,l,j,k,int6f122table)
@@ -269,7 +286,7 @@ contains
                                temp3=temp3+temp*val3
                                temp4=temp4+temp*val4
                                if (r.NE.p) then
-                                  temp=orbvec(p,A)*orbvec(r,B)
+                                  temp=orbvec(p+1,A)*orbvec(r+1,B)
                                   temp1=temp1+temp*val1
                                   temp2=temp2+temp*val2
                                   temp3=temp3+temp*val3
@@ -421,10 +438,10 @@ contains
     close(11)
   end subroutine read_vec0_file
 
-  subroutine create_vec0_file(m,n,counter,intf12,orbvec)
+  subroutine create_vec0_file(m,mscf,n,counter,intf12,orbvec)
     implicit none
     integer :: i,j,k,l,A,B,counter,ii
-    integer, intent(in) :: m,n
+    integer, intent(in) :: m,n,mscf
     real(prec) :: integral,beta,val
     real(prec) :: intf12(0:,0:,0:,0:),orbvec(:,:)
     beta = 2._prec*aleph+1._prec
@@ -435,7 +452,7 @@ contains
           do j = 0, m-1
              do i = 0, j
                 integral = 0._prec
-                do l = 0, m-1
+                do l = 0, mscf-1
                    do k = 0, l
                       if (modulo(i+j+k+l,2).EQ.0) then
                          val = intf12(k,i,l,j)
@@ -1340,7 +1357,7 @@ contains
     implicit none
     integer             :: i,j,ii,fun,number,m
     real(prec)          :: mm,lolzix
-    real(prec)          :: intildef12(0:newhn,0:newhn)
+    real(prec)          :: intildef12(0:,0:)
     m=newhn
     intildef12 = 0._prec
     open(11,file='bas/file_t1.F',status='unknown',form='unformatted',access='direct',RECL=RECS)
@@ -1360,7 +1377,7 @@ contains
     implicit none
     integer    :: counter,nm,m,s,t,u,other
     real(prec) :: temp
-    real(prec) :: intildef12(0:newhn,0:newhn)
+    real(prec) :: intildef12(0:,0:)
     m=newhn/2
     open(10,file='bas/file_t1i1.F',status='unknown',form='unformatted',access='direct',RECL=RECS)
     nm = m-1
@@ -1387,7 +1404,7 @@ contains
     implicit none
     integer             :: other,s,t,ii,fun,number,m
     real(prec)          :: mm,lolzix
-    real(prec)          :: intinterm1(0:newhn,0:newhn,0:newhn)
+    real(prec)          :: intinterm1(0:,0:,0:)
     m=newhn/2
     intinterm1 = 0._prec
     open(11,file='bas/file_t1i1.F',status='unknown',form='unformatted',access='direct',RECL=RECS)
@@ -1407,7 +1424,7 @@ contains
     implicit none
     integer    :: counter,nm,m,w,i,j,s,t,summing
     real(prec) :: temp
-    real(prec) :: intinterm1(0:newhn,0:newhn,0:newhn)
+    real(prec) :: intinterm1(0:,0:,0:)
     m=newhn/2
     open(10,file='bas/file_t1i2.F',status='unknown',form='unformatted',access='direct',RECL=RECS)
     nm = m-1
@@ -1440,7 +1457,7 @@ contains
     implicit none
     integer             :: i,j,s,t,ii,fun,number,m
     real(prec)          :: mm,lolzix
-    real(prec)          :: intinterm12(0:newhn,0:newhn,0:newhn,0:newhn)
+    real(prec)          :: intinterm12(0:,0:,0:,0:)
     m=newhn/2
     intinterm12 = 0._prec
     open(11,file='bas/file_t1i2.F',status='unknown',form='unformatted',access='direct',RECL=RECS)
@@ -1543,7 +1560,7 @@ contains
     implicit none
     integer             :: i,j,ii,fun,number,m
     real(prec)          :: mm,lolzix
-    real(prec)          :: intildef122(0:newhn,0:newhn)
+    real(prec)          :: intildef122(0:,0:)
     m=newhn
     intildef122 = 0._prec
     open(11,file='bas/file_t2.F',status='unknown',form='unformatted',access='direct',RECL=RECS)
@@ -1563,7 +1580,7 @@ contains
     implicit none
     integer    :: counter,nm,m,s,t,u,other
     real(prec) :: temp
-    real(prec) :: intildef122(0:newhn,0:newhn)
+    real(prec) :: intildef122(0:,0:)
     m=newhn/2
     open(10,file='bas/file_t2i1.F',status='unknown',form='unformatted',access='direct',RECL=RECS)
     nm = m-1
@@ -1590,7 +1607,7 @@ contains
     implicit none
     integer             :: other,s,t,ii,fun,number,m
     real(prec)          :: mm,lolzix
-    real(prec)          :: intinterm2(0:newhn,0:newhn,0:newhn)
+    real(prec)          :: intinterm2(0:,0:,0:)
     m=newhn/2
     intinterm2 = 0._prec
     open(11,file='bas/file_t2i1.F',status='unknown',form='unformatted',access='direct',RECL=RECS)
@@ -1610,7 +1627,7 @@ contains
     implicit none
     integer    :: counter,nm,m,w,i,j,s,t,summing
     real(prec) :: temp
-    real(prec) :: intinterm2(0:newhn,0:newhn,0:newhn)
+    real(prec) :: intinterm2(0:,0:,0:)
     m=newhn/2
     open(10,file='bas/file_t2i2.F',status='unknown',form='unformatted',access='direct',RECL=RECS)
     nm = m-1

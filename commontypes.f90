@@ -93,6 +93,7 @@ real(prec) :: OPTSTEPMLT;  logical :: set_OPTSTEPMLT
 real(prec) :: OPTLINMLT;   logical :: set_OPTLINMLT
 real(prec) :: OPTNORMTHR;  logical :: set_OPTNORMTHR
 integer    :: TGNBAS;      logical :: set_TGNBAS
+integer    :: SCFNBAS;     logical :: set_SCFNBAS
 real(prec) :: TGG;         logical :: set_TGG
 end type InputData
 
@@ -114,6 +115,7 @@ real(prec) :: OPTSTEPMLT
 real(prec) :: OPTLINMLT
 real(prec) :: OPTNORMTHR
 integer    :: TGNBAS
+integer    :: SCFNBAS
 real(prec) :: TGG
 end type ControlData
 
@@ -126,6 +128,7 @@ end type OrbSpecData
 
 type OrbSystemData
 integer :: nbas
+integer :: scfnbas
 real(prec) :: tgg
 integer :: n_prim
 type(OrbSpecData),allocatable :: OrbSpec(:)
@@ -242,6 +245,7 @@ Input%OPTSTEPMLT  = 1.e-2_prec;    Input%set_OPTSTEPMLT  = .false.
 Input%OPTLINMLT   = 2._prec;       Input%set_OPTLINMLT   = .false.
 Input%OPTNORMTHR  = 1.e-7_prec;    Input%set_OPTNORMTHR  = .false.
 Input%TGNBAS      = 10;            Input%set_TGNBAS      = .false.
+Input%SCFNBAS     = 20;            Input%set_SCFNBAS     = .false.
 Input%TGG         = 1._prec;       Input%set_TGG         = .false.
 
 end subroutine init_Input
@@ -475,6 +479,11 @@ if(Input%set_TGNBAS) then
    write(LOUT,'(a,i8)') 'TGNBAS = ',Input%TGNBAS
 else
    write(LOUT,'(a,i8,t35,a)') 'TGNBAS = ',Input%TGNBAS,'! default'
+endif
+if(Input%set_SCFNBAS) then
+   write(LOUT,'(a,i8)') 'SCFNBAS = ',Input%SCFNBAS
+else
+   write(LOUT,'(a,i8,t35,a)') 'TGNBAS = ',Input%SCFNBAS,'! default'
 endif
 if(Input%set_TGG) then
    write(LOUT,'(a,es16.3)') 'TGG = ',Input%TGG
@@ -1574,8 +1583,9 @@ type(OrbSystemData) :: OrbSystem
 integer :: LPRINT
 integer :: i
 
-write(LOUT,'(a,i5)') 'Number of basis functions: ',OrbSystem%nbas
-write(LOUT,'(a,i5)') 'Number of primitives:      ',OrbSystem%n_prim
+write(LOUT,'(a,i5)') 'Number of scf basis functions: ',OrbSystem%scfnbas
+write(LOUT,'(a,i5)') 'Number of basis functions:     ',OrbSystem%nbas
+write(LOUT,'(a,i5)') 'Number of primitives:          ',OrbSystem%n_prim
 
 if(LPRINT>=2) then
 
@@ -2129,7 +2139,7 @@ SCForbitals%norb = System%norb
 SCForbitals%nbas = 0
 do i=1,System%n_orbs
    associate(OrbSystem => System%OrbSystem(i))
-     SCForbitals%nbas = max(SCForbitals%nbas,OrbSystem%nbas)
+     SCForbitals%nbas = max(SCForbitals%nbas,OrbSystem%scfnbas)
    end associate
 enddo
 
@@ -2213,7 +2223,7 @@ write(LOUT,'(a)') 'orbital energies'
 write(LOUT,'(5x,10f25.18)') &
      (SCForbitals%orb_energy(iorb),iorb=1,SCForbitals%norb)
 
-write(LOUT,'()') 
+write(LOUT,'()')
 write(LOUT,'(a,f25.18)') 'LUMO: ',SCForbitals%LUMO
 write(LOUT,'(a,f25.18)') 'HOMO: ',SCForbitals%HOMO
 

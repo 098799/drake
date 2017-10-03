@@ -306,6 +306,7 @@ do j=1,System%n_orbs
 
      call create_OrbSystem(OrbSystem,nprim_orbs,prim)
      !modtg
+     OrbSystem%scfnbas = Input%SCFNBAS
      OrbSystem%nbas = Input%TGNBAS
      OrbSystem%tgg = Input%TGG
      !modtg

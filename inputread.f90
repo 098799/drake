@@ -529,6 +529,14 @@ do
          call read_value_and_advance_line(line,Input%TGNBAS,end_flag)
          Input%set_TGNBAS = .true.
       endif
+   case('SCFNBAS')
+      if(Input%set_SCFNBAS) then
+         write(LOUT,'(a)') 'SCFNBAS has already been set!'
+         call incorrect_data
+      else
+         call read_value_and_advance_line(line,Input%SCFNBAS,end_flag)
+         Input%set_SCFNBAS = .true.
+      endif
    case('TGG')
       if(Input%set_TGG) then
          write(LOUT,'(a)') 'TGG has already been set!'
